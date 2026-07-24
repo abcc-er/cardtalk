@@ -165,7 +165,7 @@ export default function FlightChessPage() {
   }, [gameState, isMyTurn]);
 
   const rollDice = useCallback(() => {
-    if (!gameState || !isMyTurn || gameState.isRolling) return;
+    if (!gameState || !isMyTurn || gameState.isRolling || gameState.dice !== null) return;
     
     setGameState((prev) => {
       if (!prev) return prev;
@@ -287,21 +287,94 @@ export default function FlightChessPage() {
         ...prev,
         planes,
         currentPlayer: winner ? prev.currentPlayer : PLAYER_ORDER[nextPlayerIdx],
-        dice: winner ? null : (prev.dice === 6 ? null : prev.dice),
+        dice: null,
         selectedPlaneId: null,
         message,
       };
     });
     
-    if (!isMyTurn) {
-      setTimeout(() => {
-        setGameState((prev) => {
-          if (!prev || prev.currentPlayer === "red") return prev;
-          return { ...prev, dice: null };
+    setTimeout(() => {
+      setGameState((prev) => {
+        if (!prev || prev.currentPlayer === "red") return prev;
+        
+        setGameState((p) => {
+          if (!p || p.currentPlayer === "red") return p;
+          return { ...p, isRolling: true };
         });
-      }, 600);
-    }
-  }, [gameState, isMyTurn, getPlayerInfo]);
+        
+        setTimeout(() => {
+          setGameState((p) => {
+            if (!p || p.currentPlayer === "red") return p;
+            
+            const finalDice = Math.floor(Math.random() * 6) + 1;
+            
+            let cardText: string | null = null;
+            if (finalDice === 6 || finalDice === 1) {
+              const cards = getChatCardsForPlayer(p.currentPlayer);
+              if (cards.length > 0) {
+                cardText = cards[Math.floor(Math.random() * cards.length)].content;
+              }
+            }
+            
+            const playerInfo = getPlayerInfo(p.currentPlayer);
+            const message = cardText 
+              ? `${playerInfo.name}: ${cardText}` 
+              : `${playerInfo.name} 投出了 ${finalDice} 点`;
+            
+            const colorOrder = PLAYER_ORDER.indexOf(p.currentPlayer);
+            const startPos = (colorOrder * 13) % TOTAL_TRACK;
+            
+            const movablePlanes = p.planes.filter((pp) => {
+              if (pp.color !== p.currentPlayer || pp.finished) return false;
+              if (pp.inBase) return finalDice === 6;
+              return pp.position + finalDice <= TOTAL_TRACK + startPos + 3;
+            });
+            
+            if (movablePlanes.length > 0) {
+              setTimeout(() => {
+                const randomPlane = movablePlanes[Math.floor(Math.random() * movablePlanes.length)];
+                movePlane(randomPlane.id);
+              }, 800);
+            } else {
+              setTimeout(() => {
+                setGameState((prevState) => {
+                  if (!prevState || prevState.currentPlayer === "red") return prevState;
+                  const idx = PLAYER_ORDER.indexOf(prevState.currentPlayer);
+                  const nextIdx = (idx + 1) % 4;
+                  return {
+                    ...prevState,
+                    currentPlayer: PLAYER_ORDER[nextIdx],
+                    dice: null,
+                    message: `${getPlayerInfo(PLAYER_ORDER[nextIdx]).name} 的回合`,
+                  };
+                });
+              }, 500);
+            }
+            
+            return {
+              ...p,
+              dice: finalDice,
+              isRolling: false,
+              selectedPlaneId: null,
+              message,
+              lastCard: cardText,
+              showCard: !!cardText,
+              turnCount: p.turnCount + 1,
+            };
+          });
+          
+          setTimeout(() => {
+            setGameState((p) => {
+              if (!p) return p;
+              return { ...p, showCard: false };
+            });
+          }, 3000);
+        }, 600);
+        
+        return prev;
+      });
+    }, 600);
+  }, [gameState, getPlayerInfo, getChatCardsForPlayer]);
 
   const getPlanePosition = (plane: Plane) => {
     if (plane.inBase) {
@@ -340,8 +413,8 @@ export default function FlightChessPage() {
     const movablePlaneIds = getMovablePlaneIds();
     
     return (
-      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-4 shadow-xl" style={{ width: "100%", aspectRatio: `${MAP_WIDTH} / ${MAP_HEIGHT}` }}>
-        <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="absolute inset-0 w-full h-full p-2" preserveAspectRatio="xMidYMid meet">
+      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-3 shadow-xl overflow-hidden" style={{ width: "100%", aspectRatio: `${MAP_WIDTH} / ${MAP_HEIGHT}` }}>
+        <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
             <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
               <circle cx="0.5" cy="0.5" r="0.08" fill="rgba(0,0,0,0.05)" />
@@ -584,8 +657,8 @@ export default function FlightChessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex flex-col items-center justify-center p-2">
-      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 shadow-2xl w-full" style={{ maxWidth: "700px" }}>
+    <div className="fixed inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex flex-col items-center justify-center p-2">
+      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 shadow-2xl w-full" style={{ maxWidth: "750px", maxHeight: "95vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => goHome()}
