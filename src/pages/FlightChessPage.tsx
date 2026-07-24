@@ -16,13 +16,17 @@ const COLORS: Record<PlayerColor, { bg: string; border: string; text: string }> 
 
 const TOTAL_TRACK = 52;
 
-// 共享的 52 格轨道坐标，供棋盘渲染和棋子定位共用，避免不一致导致越界崩溃
+// 地图总尺寸：28x16（适合手机横屏）
+const MAP_WIDTH = 28;
+const MAP_HEIGHT = 16;
+
+// 共享的 52 格轨道坐标
 const TRACK_POSITIONS: { x: number; y: number }[] = (() => {
   const positions: { x: number; y: number }[] = [];
-  for (let i = 0; i < 13; i++) positions.push({ x: 1 + i, y: 1 });
-  for (let i = 0; i < 13; i++) positions.push({ x: 15, y: 1 + i });
-  for (let i = 0; i < 13; i++) positions.push({ x: 15 - i, y: 15 });
-  for (let i = 0; i < 13; i++) positions.push({ x: 1, y: 15 - i });
+  for (let i = 0; i < 13; i++) positions.push({ x: 3 + i, y: 1 });
+  for (let i = 0; i < 13; i++) positions.push({ x: 25, y: 2 + i });
+  for (let i = 0; i < 13; i++) positions.push({ x: 24 - i, y: 15 });
+  for (let i = 0; i < 13; i++) positions.push({ x: 2, y: 14 - i });
   return positions;
 })();
 
@@ -304,9 +308,9 @@ export default function FlightChessPage() {
       const colorIdx = PLAYER_ORDER.indexOf(plane.color);
       const basePositions = [
         { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 2 },
-        { x: 12, y: 1 }, { x: 13, y: 1 }, { x: 12, y: 2 }, { x: 13, y: 2 },
-        { x: 12, y: 12 }, { x: 13, y: 12 }, { x: 12, y: 13 }, { x: 13, y: 13 },
-        { x: 1, y: 12 }, { x: 2, y: 12 }, { x: 1, y: 13 }, { x: 2, y: 13 },
+        { x: 25, y: 1 }, { x: 26, y: 1 }, { x: 25, y: 2 }, { x: 26, y: 2 },
+        { x: 25, y: 13 }, { x: 26, y: 13 }, { x: 25, y: 14 }, { x: 26, y: 14 },
+        { x: 1, y: 13 }, { x: 2, y: 13 }, { x: 1, y: 14 }, { x: 2, y: 14 },
       ];
       const idx = PLAYER_ORDER.indexOf(plane.color) * 4 + parseInt(plane.id.split("-")[1]);
       return basePositions[idx];
@@ -316,16 +320,16 @@ export default function FlightChessPage() {
       const finishIdx = plane.position - TOTAL_TRACK;
       const colorIdx = PLAYER_ORDER.indexOf(plane.color);
       const finishPositions = [
-        [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 6, y: 6 }],
-        [{ x: 10, y: 6 }, { x: 9, y: 6 }, { x: 8, y: 6 }, { x: 7, y: 6 }],
-        [{ x: 7, y: 10 }, { x: 7, y: 9 }, { x: 7, y: 8 }, { x: 7, y: 7 }],
-        [{ x: 3, y: 7 }, { x: 4, y: 7 }, { x: 5, y: 7 }, { x: 6, y: 7 }],
+        [{ x: 13, y: 3 }, { x: 13, y: 4 }, { x: 13, y: 5 }, { x: 13, y: 6 }],
+        [{ x: 19, y: 6 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }],
+        [{ x: 16, y: 10 }, { x: 16, y: 9 }, { x: 16, y: 8 }, { x: 16, y: 7 }],
+        [{ x: 10, y: 7 }, { x: 11, y: 7 }, { x: 12, y: 7 }, { x: 13, y: 7 }],
       ];
       return finishPositions[colorIdx][finishIdx];
     }
     
     if (plane.position < 0 || plane.position >= TRACK_POSITIONS.length) {
-      return { x: 8, y: 8 };
+      return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     }
     return TRACK_POSITIONS[plane.position];
   };
@@ -336,8 +340,8 @@ export default function FlightChessPage() {
     const movablePlaneIds = getMovablePlaneIds();
     
     return (
-      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-4 shadow-xl" style={{ width: "100%", maxWidth: "500px", aspectRatio: "1" }}>
-        <svg viewBox="0 0 16 16" className="absolute inset-0 w-full h-full p-2" preserveAspectRatio="xMidYMid meet">
+      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-4 shadow-xl" style={{ width: "100%", aspectRatio: `${MAP_WIDTH} / ${MAP_HEIGHT}` }}>
+        <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="absolute inset-0 w-full h-full p-2" preserveAspectRatio="xMidYMid meet">
           <defs>
             <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
               <circle cx="0.5" cy="0.5" r="0.08" fill="rgba(0,0,0,0.05)" />
@@ -347,41 +351,43 @@ export default function FlightChessPage() {
             </filter>
           </defs>
           
-          <rect width="16" height="16" fill="url(#grid)" />
+          <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#grid)" />
           
           <rect x="0" y="0" width="3" height="3" fill="#ff6b6b" opacity="0.15" rx="0.3" />
           <rect x="0" y="0" width="3" height="3" fill="none" stroke="#ff6b6b" strokeWidth="0.15" rx="0.3" />
           <text x="1.5" y="1.8" fontSize="0.6" fill="#ff6b6b" textAnchor="middle" fontWeight="bold">基地</text>
           
-          <rect x="13" y="0" width="3" height="3" fill="#ffd93d" opacity="0.15" rx="0.3" />
-          <rect x="13" y="0" width="3" height="3" fill="none" stroke="#ffd93d" strokeWidth="0.15" rx="0.3" />
-          <text x="14.5" y="1.8" fontSize="0.6" fill="#ffd93d" textAnchor="middle" fontWeight="bold">基地</text>
+          <rect x="25" y="0" width="3" height="3" fill="#ffd93d" opacity="0.15" rx="0.3" />
+          <rect x="25" y="0" width="3" height="3" fill="none" stroke="#ffd93d" strokeWidth="0.15" rx="0.3" />
+          <text x="26.5" y="1.8" fontSize="0.6" fill="#ffd93d" textAnchor="middle" fontWeight="bold">基地</text>
           
-          <rect x="13" y="13" width="3" height="3" fill="#6bcb77" opacity="0.15" rx="0.3" />
-          <rect x="13" y="13" width="3" height="3" fill="none" stroke="#6bcb77" strokeWidth="0.15" rx="0.3" />
-          <text x="14.5" y="14.8" fontSize="0.6" fill="#6bcb77" textAnchor="middle" fontWeight="bold">基地</text>
+          <rect x="25" y="13" width="3" height="3" fill="#6bcb77" opacity="0.15" rx="0.3" />
+          <rect x="25" y="13" width="3" height="3" fill="none" stroke="#6bcb77" strokeWidth="0.15" rx="0.3" />
+          <text x="26.5" y="14.8" fontSize="0.6" fill="#6bcb77" textAnchor="middle" fontWeight="bold">基地</text>
           
           <rect x="0" y="13" width="3" height="3" fill="#4d96ff" opacity="0.15" rx="0.3" />
           <rect x="0" y="13" width="3" height="3" fill="none" stroke="#4d96ff" strokeWidth="0.15" rx="0.3" />
           <text x="1.5" y="14.8" fontSize="0.6" fill="#4d96ff" textAnchor="middle" fontWeight="bold">基地</text>
           
-          <circle cx="8" cy="8" r="3" fill="none" stroke="#ddd" strokeWidth="0.1" />
-          <circle cx="8" cy="8" r="2.5" fill="none" stroke="#ddd" strokeWidth="0.1" />
+          <circle cx={MAP_WIDTH / 2} cy={MAP_HEIGHT / 2} r="5" fill="none" stroke="#ddd" strokeWidth="0.1" />
+          <circle cx={MAP_WIDTH / 2} cy={MAP_HEIGHT / 2} r="4" fill="none" stroke="#ddd" strokeWidth="0.1" />
           
           {PLAYER_ORDER.map((color, idx) => {
             const angle = (idx * 90 - 45) * (Math.PI / 180);
             const startAngle = idx * 90 * (Math.PI / 180);
             const endAngle = (idx + 1) * 90 * (Math.PI / 180);
+            const cx = MAP_WIDTH / 2;
+            const cy = MAP_HEIGHT / 2;
             return (
               <g key={color}>
                 <path
-                  d={`M 8 8 L ${8 + 3 * Math.cos(startAngle)} ${8 + 3 * Math.sin(startAngle)} A 3 3 0 0 1 ${8 + 3 * Math.cos(endAngle)} ${8 + 3 * Math.sin(endAngle)} Z`}
+                  d={`M ${cx} ${cy} L ${cx + 4 * Math.cos(startAngle)} ${cy + 4 * Math.sin(startAngle)} A 4 4 0 0 1 ${cx + 4 * Math.cos(endAngle)} ${cy + 4 * Math.sin(endAngle)} Z`}
                   fill={COLORS[color].bg}
                   opacity="0.2"
                 />
                 <text
-                  x={8 + 2 * Math.cos(angle)}
-                  y={8 + 2 * Math.sin(angle)}
+                  x={cx + 2.5 * Math.cos(angle)}
+                  y={cy + 2.5 * Math.sin(angle)}
                   fontSize="0.5"
                   fill={COLORS[color].text}
                   textAnchor="middle"
@@ -428,10 +434,10 @@ export default function FlightChessPage() {
           
           {PLAYER_ORDER.map((color, idx) => {
             const finishPositions = [
-              [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 6, y: 6 }],
-              [{ x: 10, y: 6 }, { x: 9, y: 6 }, { x: 8, y: 6 }, { x: 7, y: 6 }],
-              [{ x: 7, y: 10 }, { x: 7, y: 9 }, { x: 7, y: 8 }, { x: 7, y: 7 }],
-              [{ x: 3, y: 7 }, { x: 4, y: 7 }, { x: 5, y: 7 }, { x: 6, y: 7 }],
+              [{ x: 13, y: 3 }, { x: 13, y: 4 }, { x: 13, y: 5 }, { x: 13, y: 6 }],
+              [{ x: 19, y: 6 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }],
+              [{ x: 16, y: 10 }, { x: 16, y: 9 }, { x: 16, y: 8 }, { x: 16, y: 7 }],
+              [{ x: 10, y: 7 }, { x: 11, y: 7 }, { x: 12, y: 7 }, { x: 13, y: 7 }],
             ];
             return finishPositions[idx].map((pos, fi) => (
               <rect
@@ -471,10 +477,10 @@ export default function FlightChessPage() {
               key={plane.id}
               className={`absolute flex items-center justify-center rounded-full cursor-pointer transition-all duration-300 ${isMovable ? "hover:scale-110" : ""} ${isSelected ? "ring-2 ring-white ring-offset-2" : ""}`}
               style={{
-                left: `${((pos.x - 0.5) / 16) * 100}%`,
-                top: `${((pos.y - 0.5) / 16) * 100}%`,
-                width: "28px",
-                height: "28px",
+                left: `${((pos.x - 0.5) / MAP_WIDTH) * 100}%`,
+                top: `${((pos.y - 0.5) / MAP_HEIGHT) * 100}%`,
+                width: "24px",
+                height: "24px",
                 backgroundColor: COLORS[plane.color].bg,
                 boxShadow: `0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)`,
                 border: `2px solid ${COLORS[plane.color].border}`,
@@ -578,9 +584,9 @@ export default function FlightChessPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex flex-col items-center justify-center p-4">
-      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 shadow-2xl max-w-md w-full">
-        <div className="flex items-center justify-between mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex flex-col items-center justify-center p-2">
+      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 shadow-2xl w-full" style={{ maxWidth: "700px" }}>
+        <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => goHome()}
             className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors"
@@ -588,7 +594,7 @@ export default function FlightChessPage() {
             <ArrowLeft className="w-5 h-5" />
             <span>返回</span>
           </button>
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-lg font-bold flex items-center gap-2">
             ✈️ 飞行棋
           </h1>
           <button
@@ -599,103 +605,61 @@ export default function FlightChessPage() {
           </button>
         </div>
         
-        <div className="mb-4">
+        <div className="mb-3">
           {gameState.showCard && gameState.lastCard && (
-            <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-xl p-3 mb-3 animate-pulse">
-              <p className="text-center font-medium text-gray-700">{gameState.lastCard}</p>
+            <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-xl p-3 mb-2 animate-pulse">
+              <p className="text-center font-medium text-gray-700 text-sm">{gameState.lastCard}</p>
             </div>
           )}
-          <p className="text-center text-gray-600 text-sm">{gameState.message}</p>
+          <p className="text-center text-gray-600 text-xs">{gameState.message}</p>
         </div>
         
         {renderBoard()}
         
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            {PLAYER_ORDER.slice(0, 2).map((color) => {
-              const info = getPlayerInfo(color);
-              const isCurrent = gameState.currentPlayer === color;
-              const finishedCount = gameState.planes.filter((p) => p.color === color && p.finished).length;
-              
-              return (
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {PLAYER_ORDER.map((color) => {
+            const info = getPlayerInfo(color);
+            const isCurrent = gameState.currentPlayer === color;
+            const finishedCount = gameState.planes.filter((p) => p.color === color && p.finished).length;
+            
+            return (
+              <div
+                key={color}
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
+                  isCurrent ? "ring-2 ring-offset-1" : ""
+                }`}
+                style={{
+                  backgroundColor: isCurrent ? COLORS[color].bg : "#f3f4f6",
+                  color: isCurrent ? COLORS[color].text : "#374151",
+                  "--tw-ring-color": COLORS[color].bg,
+                } as React.CSSProperties}
+              >
                 <div
-                  key={color}
-                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                    isCurrent ? "ring-2 ring-offset-1" : ""
-                  }`}
-                  style={{
-                    backgroundColor: isCurrent ? COLORS[color].bg : "#f3f4f6",
-                    color: isCurrent ? COLORS[color].text : "#374151",
-                    "--tw-ring-color": COLORS[color].bg,
-                  } as React.CSSProperties}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: COLORS[color].bg }}
                 >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ backgroundColor: COLORS[color].bg }}
-                  >
-                    {info.avatarImage ? (
-                      <img src={info.avatarImage} alt="" className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <span style={{ color: COLORS[color].text }}>{info.avatarText}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{info.name}</p>
-                    <p className="text-xs opacity-70">{finishedCount}/4</p>
-                  </div>
-                  {isCurrent && (
-                    <span className="text-xs font-bold">👑</span>
+                  {info.avatarImage ? (
+                    <img src={info.avatarImage} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <span style={{ color: COLORS[color].text }}>{info.avatarText}</span>
                   )}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-medium truncate max-w-[60px]">{info.name}</p>
+                  <p className="text-[10px] opacity-70">{finishedCount}/4</p>
+                </div>
+                {isCurrent && (
+                  <span className="text-[10px] font-bold">👑</span>
+                )}
                 </div>
               );
             })}
           </div>
-          
-          <div className="space-y-2">
-            {PLAYER_ORDER.slice(2).map((color) => {
-              const info = getPlayerInfo(color);
-              const isCurrent = gameState.currentPlayer === color;
-              const finishedCount = gameState.planes.filter((p) => p.color === color && p.finished).length;
-              
-              return (
-                <div
-                  key={color}
-                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                    isCurrent ? "ring-2 ring-offset-1" : ""
-                  }`}
-                  style={{
-                    backgroundColor: isCurrent ? COLORS[color].bg : "#f3f4f6",
-                    color: isCurrent ? COLORS[color].text : "#374151",
-                    "--tw-ring-color": COLORS[color].bg,
-                  } as React.CSSProperties}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ backgroundColor: COLORS[color].bg }}
-                  >
-                    {info.avatarImage ? (
-                      <img src={info.avatarImage} alt="" className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <span style={{ color: COLORS[color].text }}>{info.avatarText}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{info.name}</p>
-                    <p className="text-xs opacity-70">{finishedCount}/4</p>
-                  </div>
-                  {isCurrent && (
-                    <span className="text-xs font-bold">👑</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
         
-        <div className="mt-4 flex flex-col items-center gap-3">
+        <div className="mt-3 flex flex-col items-center gap-2">
           {gameState.dice !== null && (
-            <div className="flex items-center gap-2 text-lg font-bold">
-              <Dices className="w-6 h-6" />
+            <div className="flex items-center gap-2 text-base font-bold">
+              <Dices className="w-5 h-5" />
               <span>{gameState.dice} 点</span>
             </div>
           )}
@@ -703,13 +667,13 @@ export default function FlightChessPage() {
           <button
             onClick={rollDice}
             disabled={!isMyTurn || gameState.isRolling || gameState.dice !== null}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-white transition-all ${
               isMyTurn && !gameState.isRolling && gameState.dice === null
                 ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 : "bg-gray-300 cursor-not-allowed"
             }`}
           >
-            <Dices className={`w-5 h-5 ${gameState.isRolling ? "animate-spin" : ""}`} />
+            <Dices className={`w-4 h-4 ${gameState.isRolling ? "animate-spin" : ""}`} />
             {gameState.isRolling ? "投掷中..." : isMyTurn ? "投骰子" : "对方回合"}
           </button>
         </div>
