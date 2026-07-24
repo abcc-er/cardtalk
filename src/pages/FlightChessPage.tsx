@@ -16,19 +16,37 @@ const COLORS: Record<PlayerColor, { bg: string; border: string; text: string }> 
 
 const TOTAL_TRACK = 52;
 
-// 地图总尺寸：28x16（适合手机横屏）
-const MAP_WIDTH = 28;
-const MAP_HEIGHT = 16;
+const BOARD_SIZE = 15;
 
-// 共享的 52 格轨道坐标
 const TRACK_POSITIONS: { x: number; y: number }[] = (() => {
-  const positions: { x: number; y: number }[] = [];
-  for (let i = 0; i < 13; i++) positions.push({ x: 3 + i, y: 1 });
-  for (let i = 0; i < 13; i++) positions.push({ x: 25, y: 2 + i });
-  for (let i = 0; i < 13; i++) positions.push({ x: 24 - i, y: 15 });
-  for (let i = 0; i < 13; i++) positions.push({ x: 2, y: 14 - i });
-  return positions;
+  const p: { x: number; y: number }[] = [];
+  for (let i = 0; i < 13; i++) p.push({ x: i + 1, y: 0 });
+  for (let i = 0; i < 13; i++) p.push({ x: 14, y: i + 1 });
+  for (let i = 0; i < 13; i++) p.push({ x: 14 - i, y: 14 });
+  for (let i = 0; i < 13; i++) p.push({ x: 0, y: 14 - i });
+  return p;
 })();
+
+const BASE_POSITIONS: Record<PlayerColor, { x: number; y: number }[]> = {
+  red: [{ x: 1, y: 1 }, { x: 3, y: 1 }, { x: 1, y: 3 }, { x: 3, y: 3 }],
+  yellow: [{ x: 11, y: 1 }, { x: 13, y: 1 }, { x: 11, y: 3 }, { x: 13, y: 3 }],
+  green: [{ x: 11, y: 11 }, { x: 13, y: 11 }, { x: 11, y: 13 }, { x: 13, y: 13 }],
+  blue: [{ x: 1, y: 11 }, { x: 3, y: 11 }, { x: 1, y: 13 }, { x: 3, y: 13 }],
+};
+
+const FINISH_POSITIONS: Record<PlayerColor, { x: number; y: number }[]> = {
+  red: [{ x: 7, y: 1 }, { x: 7, y: 2 }, { x: 7, y: 3 }, { x: 7, y: 4 }, { x: 7, y: 5 }],
+  yellow: [{ x: 13, y: 7 }, { x: 12, y: 7 }, { x: 11, y: 7 }, { x: 10, y: 7 }, { x: 9, y: 7 }],
+  green: [{ x: 7, y: 13 }, { x: 7, y: 12 }, { x: 7, y: 11 }, { x: 7, y: 10 }, { x: 7, y: 9 }],
+  blue: [{ x: 1, y: 7 }, { x: 2, y: 7 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 5, y: 7 }],
+};
+
+const START_POS_IDX: Record<PlayerColor, number> = {
+  red: 0,
+  yellow: 13,
+  green: 26,
+  blue: 39,
+};
 
 interface Plane {
   id: string;
@@ -140,29 +158,72 @@ export default function FlightChessPage() {
 
   const isMyTurn = gameState?.currentPlayer === "red";
 
-  const getMovablePlaneIds = useCallback((): string[] => {
-    if (!gameState || !gameState.dice || !isMyTurn) return [];
+  const getMovablePlaneIds = useCallback((forColor: PlayerColor, dice: number, planes: Plane[]): string[] => {
     const movable: string[] = [];
-    const { dice, planes, currentPlayer } = gameState;
-    const colorOrder = PLAYER_ORDER.indexOf(currentPlayer);
-    const startPos = (colorOrder * 13) % TOTAL_TRACK;
+    const startIdx = START_POS_IDX[forColor];
     
     planes.forEach((plane) => {
-      if (plane.color !== currentPlayer || plane.finished) return;
+      if (plane.color !== forColor || plane.finished) return;
       
       if (plane.inBase) {
         if (dice === 6) movable.push(plane.id);
         return;
       }
       
-      const newPos = plane.position + dice;
-      if (newPos <= TOTAL_TRACK + startPos + 3) {
+      const stepsToFinish = TOTAL_TRACK - ((plane.position - startIdx + TOTAL_TRACK) % TOTAL_TRACK) + 4;
+      if (dice <= stepsToFinish) {
         movable.push(plane.id);
       }
     });
     
     return movable;
-  }, [gameState, isMyTurn]);
+  }, []);
+
+  const movePlaneInternal = (planes: Plane[], planeId: string, dice: number): Plane[] => {
+    const plane = planes.find((p) => p.id === planeId);
+    if (!plane) return planes;
+    
+    const color = plane.color;
+    const startIdx = START_POS_IDX[color];
+    
+    return planes.map((p) => {
+      if (p.id !== planeId) return p;
+      
+      if (p.inBase) {
+        return { ...p, inBase: false, position: startIdx };
+      }
+      
+      const relPos = ((p.position - startIdx + TOTAL_TRACK) % TOTAL_TRACK);
+      const newRelPos = relPos + dice;
+      
+      if (newRelPos >= TOTAL_TRACK) {
+        const finishIdx = newRelPos - TOTAL_TRACK;
+        if (finishIdx > 4) return p;
+        return { ...p, position: TOTAL_TRACK + finishIdx, finished: finishIdx === 4 };
+      }
+      
+      const targetPos = (startIdx + newRelPos) % TOTAL_TRACK;
+      
+      const hitPlane = planes.find(
+        (op) => op.id !== planeId && op.color !== color && !op.finished && !op.inBase && op.position === targetPos
+      );
+      
+      return { ...p, position: targetPos };
+    }).map((p) => {
+      if (p.id === planeId) return p;
+      const planeObj = planes.find((x) => x.id === planeId);
+      if (!planeObj || planeObj.inBase) return p;
+      const startIdx2 = START_POS_IDX[color];
+      const relPos = ((planeObj.position - startIdx2 + TOTAL_TRACK) % TOTAL_TRACK);
+      const newRelPos = relPos + dice;
+      if (newRelPos >= TOTAL_TRACK) return p;
+      const targetPos = (startIdx2 + newRelPos) % TOTAL_TRACK;
+      if (p.position === targetPos && p.color !== color && !p.finished && !p.inBase) {
+        return { ...p, position: -1, inBase: true };
+      }
+      return p;
+    });
+  };
 
   const rollDice = useCallback(() => {
     if (!gameState || !isMyTurn || gameState.isRolling || gameState.dice !== null) return;
@@ -173,46 +234,52 @@ export default function FlightChessPage() {
     });
     
     setTimeout(() => {
-      const finalDice = Math.floor(Math.random() * 6) + 1;
-      
-      let cardText: string | null = null;
-      if (finalDice === 6 || finalDice === 1) {
-        const cards = getChatCardsForPlayer(gameState.currentPlayer);
-        if (cards.length > 0) {
-          cardText = cards[Math.floor(Math.random() * cards.length)].content;
-        }
-      }
-      
-      const playerInfo = getPlayerInfo(gameState.currentPlayer);
-      const message = cardText 
-        ? `${playerInfo.name}: ${cardText}` 
-        : `${playerInfo.name} 投出了 ${finalDice} 点`;
-      
       setGameState((prev) => {
         if (!prev) return prev;
         
-        const colorOrder = PLAYER_ORDER.indexOf(prev.currentPlayer);
-        const startPos = (colorOrder * 13) % TOTAL_TRACK;
+        const finalDice = Math.floor(Math.random() * 6) + 1;
+        const playerInfo = getPlayerInfo(prev.currentPlayer);
+        const movable = getMovablePlaneIds(prev.currentPlayer, finalDice, prev.planes);
         
-        const movablePlanes = prev.planes.filter((p) => {
-          if (p.color !== prev.currentPlayer || p.finished) return false;
-          if (p.inBase) return finalDice === 6;
-          return p.position + finalDice <= TOTAL_TRACK + startPos + 3;
-        });
-        
-        if (!isMyTurn && movablePlanes.length > 0) {
-          setTimeout(() => {
-            const randomPlane = movablePlanes[Math.floor(Math.random() * movablePlanes.length)];
-            movePlane(randomPlane.id);
-          }, 800);
+        let cardText: string | null = null;
+        if ((finalDice === 6 || finalDice === 1) && movable.length > 0) {
+          const cards = getChatCardsForPlayer(prev.currentPlayer);
+          if (cards.length > 0) {
+            cardText = cards[Math.floor(Math.random() * cards.length)].content;
+          }
         }
+        
+        const message = cardText 
+          ? `${playerInfo.name}: ${cardText}` 
+          : `${playerInfo.name} 投出了 ${finalDice} 点`;
+        
+        if (movable.length > 0) {
+          return {
+            ...prev,
+            dice: finalDice,
+            isRolling: false,
+            message,
+            lastCard: cardText,
+            showCard: !!cardText,
+            turnCount: prev.turnCount + 1,
+          };
+        }
+        
+        const nextIdx = (PLAYER_ORDER.indexOf(prev.currentPlayer) + 1) % 4;
+        const nextColor = PLAYER_ORDER[nextIdx];
+        
+        setTimeout(() => {
+          if (nextColor !== "red") {
+            aiRoll(nextColor);
+          }
+        }, 800);
         
         return {
           ...prev,
-          dice: finalDice,
+          dice: null,
           isRolling: false,
-          selectedPlaneId: null,
-          message,
+          currentPlayer: nextColor,
+          message: `${getPlayerInfo(nextColor).name} 的回合`,
           lastCard: cardText,
           showCard: !!cardText,
           turnCount: prev.turnCount + 1,
@@ -225,184 +292,169 @@ export default function FlightChessPage() {
           return { ...prev, showCard: false };
         });
       }, 3000);
-      
     }, 600);
-  }, [gameState, isMyTurn, getChatCardsForPlayer, getPlayerInfo]);
+  }, [gameState, isMyTurn, getPlayerInfo, getChatCardsForPlayer, getMovablePlaneIds]);
 
-  const movePlane = useCallback((planeId: string) => {
-    if (!gameState || !gameState.dice) return;
-    
+  const aiRoll = useCallback((color: PlayerColor) => {
     setGameState((prev) => {
-      if (!prev || !prev.dice) return prev;
-      
-      const planes = prev.planes.map((p) => {
-        if (p.id !== planeId) return p;
-        const colorOrder = PLAYER_ORDER.indexOf(p.color);
-        const startPos = (colorOrder * 13) % TOTAL_TRACK;
-        
-        if (p.inBase) {
-          return { ...p, inBase: false, position: startPos };
-        }
-        
-        const newPos = p.position + prev.dice;
-        
-        if (newPos > TOTAL_TRACK + startPos) {
-          const overshoot = newPos - (TOTAL_TRACK + startPos);
-          if (overshoot > 4) return p;
-          const finishIdx = overshoot - 1;
-          return { ...p, position: TOTAL_TRACK + finishIdx, finished: overshoot === 4 };
-        }
-        
-        const targetPos = newPos % TOTAL_TRACK;
-        
-        const otherPlane = prev.planes.find(
-          (op) => op.id !== planeId && op.color !== p.color && op.position === targetPos && !op.finished && !op.inBase
-        );
-        
-        if (otherPlane) {
-          return { ...otherPlane, position: -1, inBase: true };
-        }
-        
-        return { ...p, position: targetPos };
-      });
-      
-      const currentPlayerIdx = PLAYER_ORDER.indexOf(prev.currentPlayer);
-      let nextPlayerIdx = currentPlayerIdx;
-      
-      if (prev.dice !== 6) {
-        nextPlayerIdx = (currentPlayerIdx + 1) % 4;
-      }
-      
-      const winner = PLAYER_ORDER.find((color) => {
-        return planes.filter((p) => p.color === color && p.finished).length === 4;
-      });
-      
-      const message = winner 
-        ? `${getPlayerInfo(winner).name} 获胜！` 
-        : prev.dice === 6
-        ? `${getPlayerInfo(prev.currentPlayer).name} 再投一次！`
-        : `${getPlayerInfo(PLAYER_ORDER[nextPlayerIdx]).name} 的回合`;
-      
-      return {
-        ...prev,
-        planes,
-        currentPlayer: winner ? prev.currentPlayer : PLAYER_ORDER[nextPlayerIdx],
-        dice: null,
-        selectedPlaneId: null,
-        message,
-      };
+      if (!prev) return prev;
+      return { ...prev, isRolling: true, currentPlayer: color };
     });
     
     setTimeout(() => {
       setGameState((prev) => {
-        if (!prev || prev.currentPlayer === "red") return prev;
+        if (!prev) return prev;
         
-        setGameState((p) => {
-          if (!p || p.currentPlayer === "red") return p;
-          return { ...p, isRolling: true };
-        });
+        const finalDice = Math.floor(Math.random() * 6) + 1;
+        const playerInfo = getPlayerInfo(prev.currentPlayer);
+        const movable = getMovablePlaneIds(prev.currentPlayer, finalDice, prev.planes);
         
-        setTimeout(() => {
-          setGameState((p) => {
-            if (!p || p.currentPlayer === "red") return p;
-            
-            const finalDice = Math.floor(Math.random() * 6) + 1;
-            
-            let cardText: string | null = null;
-            if (finalDice === 6 || finalDice === 1) {
-              const cards = getChatCardsForPlayer(p.currentPlayer);
-              if (cards.length > 0) {
-                cardText = cards[Math.floor(Math.random() * cards.length)].content;
-              }
-            }
-            
-            const playerInfo = getPlayerInfo(p.currentPlayer);
-            const message = cardText 
-              ? `${playerInfo.name}: ${cardText}` 
-              : `${playerInfo.name} 投出了 ${finalDice} 点`;
-            
-            const colorOrder = PLAYER_ORDER.indexOf(p.currentPlayer);
-            const startPos = (colorOrder * 13) % TOTAL_TRACK;
-            
-            const movablePlanes = p.planes.filter((pp) => {
-              if (pp.color !== p.currentPlayer || pp.finished) return false;
-              if (pp.inBase) return finalDice === 6;
-              return pp.position + finalDice <= TOTAL_TRACK + startPos + 3;
-            });
-            
-            if (movablePlanes.length > 0) {
-              setTimeout(() => {
-                const randomPlane = movablePlanes[Math.floor(Math.random() * movablePlanes.length)];
-                movePlane(randomPlane.id);
-              }, 800);
-            } else {
-              setTimeout(() => {
-                setGameState((prevState) => {
-                  if (!prevState || prevState.currentPlayer === "red") return prevState;
-                  const idx = PLAYER_ORDER.indexOf(prevState.currentPlayer);
-                  const nextIdx = (idx + 1) % 4;
-                  return {
-                    ...prevState,
-                    currentPlayer: PLAYER_ORDER[nextIdx],
-                    dice: null,
-                    message: `${getPlayerInfo(PLAYER_ORDER[nextIdx]).name} 的回合`,
-                  };
-                });
-              }, 500);
-            }
-            
-            return {
-              ...p,
-              dice: finalDice,
-              isRolling: false,
-              selectedPlaneId: null,
-              message,
-              lastCard: cardText,
-              showCard: !!cardText,
-              turnCount: p.turnCount + 1,
-            };
-          });
+        let cardText: string | null = null;
+        if ((finalDice === 6 || finalDice === 1) && movable.length > 0) {
+          const cards = getChatCardsForPlayer(prev.currentPlayer);
+          if (cards.length > 0) {
+            cardText = cards[Math.floor(Math.random() * cards.length)].content;
+          }
+        }
+        
+        const message = cardText 
+          ? `${playerInfo.name}: ${cardText}` 
+          : `${playerInfo.name} 投出了 ${finalDice} 点`;
+        
+        if (movable.length > 0) {
+          const randomPlane = movable[Math.floor(Math.random() * movable.length)];
           
           setTimeout(() => {
             setGameState((p) => {
               if (!p) return p;
-              return { ...p, showCard: false };
+              const newPlanes = movePlaneInternal(p.planes, randomPlane, finalDice);
+              const winner = PLAYER_ORDER.find((c) => newPlanes.filter((pp) => pp.color === c && pp.finished).length === 4);
+              
+              if (winner) {
+                return { ...p, planes: newPlanes, dice: null, message: `${getPlayerInfo(winner).name} 获胜！` };
+              }
+              
+              if (finalDice === 6) {
+                setTimeout(() => aiRoll(p.currentPlayer), 800);
+                return { ...p, planes: newPlanes, dice: null, message: `${getPlayerInfo(p.currentPlayer).name} 再投一次！` };
+              }
+              
+              const nextIdx = (PLAYER_ORDER.indexOf(p.currentPlayer) + 1) % 4;
+              const nextColor = PLAYER_ORDER[nextIdx];
+              
+              if (nextColor !== "red") {
+                setTimeout(() => aiRoll(nextColor), 800);
+              }
+              
+              return {
+                ...p,
+                planes: newPlanes,
+                dice: null,
+                currentPlayer: nextColor,
+                message: `${getPlayerInfo(nextColor).name} 的回合`,
+              };
             });
-          }, 3000);
-        }, 600);
+          }, 700);
+          
+          return {
+            ...prev,
+            dice: finalDice,
+            isRolling: false,
+            message,
+            lastCard: cardText,
+            showCard: !!cardText,
+            turnCount: prev.turnCount + 1,
+          };
+        }
         
-        return prev;
+        const nextIdx = (PLAYER_ORDER.indexOf(prev.currentPlayer) + 1) % 4;
+        const nextColor = PLAYER_ORDER[nextIdx];
+        
+        if (nextColor !== "red") {
+          setTimeout(() => aiRoll(nextColor), 800);
+        }
+        
+        return {
+          ...prev,
+          dice: null,
+          isRolling: false,
+          currentPlayer: nextColor,
+          message: `${getPlayerInfo(nextColor).name} 的回合`,
+          lastCard: cardText,
+          showCard: !!cardText,
+          turnCount: prev.turnCount + 1,
+        };
       });
+      
+      setTimeout(() => {
+        setGameState((prev) => {
+          if (!prev) return prev;
+          return { ...prev, showCard: false };
+        });
+      }, 3000);
     }, 600);
-  }, [gameState, getPlayerInfo, getChatCardsForPlayer]);
+  }, [getPlayerInfo, getChatCardsForPlayer, getMovablePlaneIds]);
 
-  const getPlanePosition = (plane: Plane) => {
+  const movePlane = useCallback((planeId: string) => {
+    if (!gameState || !gameState.dice || !isMyTurn) return;
+    
+    setGameState((prev) => {
+      if (!prev || !prev.dice) return prev;
+      
+      const newPlanes = movePlaneInternal(prev.planes, planeId, prev.dice);
+      const winner = PLAYER_ORDER.find((c) => newPlanes.filter((p) => p.color === c && p.finished).length === 4);
+      
+      if (winner) {
+        return {
+          ...prev,
+          planes: newPlanes,
+          dice: null,
+          selectedPlaneId: null,
+          message: `${getPlayerInfo(winner).name} 获胜！`,
+        };
+      }
+      
+      if (prev.dice === 6) {
+        return {
+          ...prev,
+          planes: newPlanes,
+          dice: null,
+          selectedPlaneId: null,
+          message: `${getPlayerInfo(prev.currentPlayer).name} 再投一次！`,
+        };
+      }
+      
+      const nextIdx = (PLAYER_ORDER.indexOf(prev.currentPlayer) + 1) % 4;
+      const nextColor = PLAYER_ORDER[nextIdx];
+      
+      setTimeout(() => {
+        if (nextColor !== "red") {
+          aiRoll(nextColor);
+        }
+      }, 600);
+      
+      return {
+        ...prev,
+        planes: newPlanes,
+        dice: null,
+        currentPlayer: nextColor,
+        selectedPlaneId: null,
+        message: `${getPlayerInfo(nextColor).name} 的回合`,
+      };
+    });
+  }, [gameState, isMyTurn, getPlayerInfo, aiRoll]);
+
+  const getPlanePosition = (plane: Plane): { x: number; y: number } => {
     if (plane.inBase) {
-      const colorIdx = PLAYER_ORDER.indexOf(plane.color);
-      const basePositions = [
-        { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 2 },
-        { x: 25, y: 1 }, { x: 26, y: 1 }, { x: 25, y: 2 }, { x: 26, y: 2 },
-        { x: 25, y: 13 }, { x: 26, y: 13 }, { x: 25, y: 14 }, { x: 26, y: 14 },
-        { x: 1, y: 13 }, { x: 2, y: 13 }, { x: 1, y: 14 }, { x: 2, y: 14 },
-      ];
-      const idx = PLAYER_ORDER.indexOf(plane.color) * 4 + parseInt(plane.id.split("-")[1]);
-      return basePositions[idx];
+      const idx = parseInt(plane.id.split("-")[1]);
+      return BASE_POSITIONS[plane.color][idx];
     }
-    
-    if (plane.position >= TOTAL_TRACK) {
-      const finishIdx = plane.position - TOTAL_TRACK;
-      const colorIdx = PLAYER_ORDER.indexOf(plane.color);
-      const finishPositions = [
-        [{ x: 13, y: 3 }, { x: 13, y: 4 }, { x: 13, y: 5 }, { x: 13, y: 6 }],
-        [{ x: 19, y: 6 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }],
-        [{ x: 16, y: 10 }, { x: 16, y: 9 }, { x: 16, y: 8 }, { x: 16, y: 7 }],
-        [{ x: 10, y: 7 }, { x: 11, y: 7 }, { x: 12, y: 7 }, { x: 13, y: 7 }],
-      ];
-      return finishPositions[colorIdx][finishIdx];
+    if (plane.finished) {
+      const idx = plane.position - TOTAL_TRACK;
+      return FINISH_POSITIONS[plane.color][Math.min(idx, 4)];
     }
-    
     if (plane.position < 0 || plane.position >= TRACK_POSITIONS.length) {
-      return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+      return { x: BOARD_SIZE / 2, y: BOARD_SIZE / 2 };
     }
     return TRACK_POSITIONS[plane.position];
   };
@@ -410,133 +462,73 @@ export default function FlightChessPage() {
   const renderBoard = () => {
     if (!gameState) return null;
     
-    const movablePlaneIds = getMovablePlaneIds();
+    const movablePlaneIds = isMyTurn && gameState.dice
+      ? getMovablePlaneIds(gameState.currentPlayer, gameState.dice, gameState.planes)
+      : [];
     
     return (
-      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-3 shadow-xl overflow-hidden" style={{ width: "100%", aspectRatio: `${MAP_WIDTH} / ${MAP_HEIGHT}` }}>
-        <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      <div ref={boardRef} className="relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-3 shadow-xl overflow-hidden" style={{ width: "100%", aspectRatio: "1" }}>
+        <svg viewBox={`0 0 ${BOARD_SIZE} ${BOARD_SIZE}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
-              <circle cx="0.5" cy="0.5" r="0.08" fill="rgba(0,0,0,0.05)" />
-            </pattern>
             <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0.2" stdDeviation="0.3" floodOpacity="0.2" />
+              <feDropShadow dx="0" dy="0.15" stdDeviation="0.15" floodOpacity="0.15" />
             </filter>
           </defs>
           
-          <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#grid)" />
+          <rect x="0" y="0" width={BOARD_SIZE} height={BOARD_SIZE} fill="#f0f4ff" rx="0.5" />
           
-          <rect x="0" y="0" width="3" height="3" fill="#ff6b6b" opacity="0.15" rx="0.3" />
-          <rect x="0" y="0" width="3" height="3" fill="none" stroke="#ff6b6b" strokeWidth="0.15" rx="0.3" />
-          <text x="1.5" y="1.8" fontSize="0.6" fill="#ff6b6b" textAnchor="middle" fontWeight="bold">基地</text>
+          <rect x="0" y="0" width="5" height="5" fill="#ffe0e0" />
+          <rect x="0" y="0" width="5" height="5" fill="none" stroke="#ff6b6b" strokeWidth="0.15" />
           
-          <rect x="25" y="0" width="3" height="3" fill="#ffd93d" opacity="0.15" rx="0.3" />
-          <rect x="25" y="0" width="3" height="3" fill="none" stroke="#ffd93d" strokeWidth="0.15" rx="0.3" />
-          <text x="26.5" y="1.8" fontSize="0.6" fill="#ffd93d" textAnchor="middle" fontWeight="bold">基地</text>
+          <rect x="10" y="0" width="5" height="5" fill="#fff6d0" />
+          <rect x="10" y="0" width="5" height="5" fill="none" stroke="#ffd93d" strokeWidth="0.15" />
           
-          <rect x="25" y="13" width="3" height="3" fill="#6bcb77" opacity="0.15" rx="0.3" />
-          <rect x="25" y="13" width="3" height="3" fill="none" stroke="#6bcb77" strokeWidth="0.15" rx="0.3" />
-          <text x="26.5" y="14.8" fontSize="0.6" fill="#6bcb77" textAnchor="middle" fontWeight="bold">基地</text>
+          <rect x="10" y="10" width="5" height="5" fill="#e0f5e3" />
+          <rect x="10" y="10" width="5" height="5" fill="none" stroke="#6bcb77" strokeWidth="0.15" />
           
-          <rect x="0" y="13" width="3" height="3" fill="#4d96ff" opacity="0.15" rx="0.3" />
-          <rect x="0" y="13" width="3" height="3" fill="none" stroke="#4d96ff" strokeWidth="0.15" rx="0.3" />
-          <text x="1.5" y="14.8" fontSize="0.6" fill="#4d96ff" textAnchor="middle" fontWeight="bold">基地</text>
-          
-          <circle cx={MAP_WIDTH / 2} cy={MAP_HEIGHT / 2} r="5" fill="none" stroke="#ddd" strokeWidth="0.1" />
-          <circle cx={MAP_WIDTH / 2} cy={MAP_HEIGHT / 2} r="4" fill="none" stroke="#ddd" strokeWidth="0.1" />
-          
-          {PLAYER_ORDER.map((color, idx) => {
-            const angle = (idx * 90 - 45) * (Math.PI / 180);
-            const startAngle = idx * 90 * (Math.PI / 180);
-            const endAngle = (idx + 1) * 90 * (Math.PI / 180);
-            const cx = MAP_WIDTH / 2;
-            const cy = MAP_HEIGHT / 2;
-            return (
-              <g key={color}>
-                <path
-                  d={`M ${cx} ${cy} L ${cx + 4 * Math.cos(startAngle)} ${cy + 4 * Math.sin(startAngle)} A 4 4 0 0 1 ${cx + 4 * Math.cos(endAngle)} ${cy + 4 * Math.sin(endAngle)} Z`}
-                  fill={COLORS[color].bg}
-                  opacity="0.2"
-                />
-                <text
-                  x={cx + 2.5 * Math.cos(angle)}
-                  y={cy + 2.5 * Math.sin(angle)}
-                  fontSize="0.5"
-                  fill={COLORS[color].text}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                >
-                  ✈
-                </text>
-              </g>
-            );
-          })}
+          <rect x="0" y="10" width="5" height="5" fill="#e0ecff" />
+          <rect x="0" y="10" width="5" height="5" fill="none" stroke="#4d96ff" strokeWidth="0.15" />
           
           {TRACK_POSITIONS.map((coord, i) => {
             const { x, y } = coord;
             const colorIdx = Math.floor(i / 13);
             const color = PLAYER_ORDER[colorIdx];
             const isStart = i % 13 === 0;
-
             return (
               <g key={i}>
                 <rect
-                  x={x - 0.45}
-                  y={y - 0.45}
-                  width="0.9"
-                  height="0.9"
+                  x={x}
+                  y={y}
+                  width="1"
+                  height="1"
                   fill={COLORS[color].bg}
-                  opacity={isStart ? 0.5 : 0.3}
-                  rx="0.2"
-                  filter="url(#shadow)"
+                  opacity={isStart ? 0.5 : 0.25}
                 />
                 {isStart && (
-                  <text
-                    x={x}
-                    y={y + 0.15}
-                    fontSize="0.4"
-                    fill={COLORS[color].text}
-                    textAnchor="middle"
-                  >
-                    🛫
-                  </text>
+                  <text x={x + 0.5} y={y + 0.65} fontSize="0.5" textAnchor="middle">🚀</text>
                 )}
               </g>
             );
           })}
           
-          {PLAYER_ORDER.map((color, idx) => {
-            const finishPositions = [
-              [{ x: 13, y: 3 }, { x: 13, y: 4 }, { x: 13, y: 5 }, { x: 13, y: 6 }],
-              [{ x: 19, y: 6 }, { x: 18, y: 6 }, { x: 17, y: 6 }, { x: 16, y: 6 }],
-              [{ x: 16, y: 10 }, { x: 16, y: 9 }, { x: 16, y: 8 }, { x: 16, y: 7 }],
-              [{ x: 10, y: 7 }, { x: 11, y: 7 }, { x: 12, y: 7 }, { x: 13, y: 7 }],
-            ];
-            return finishPositions[idx].map((pos, fi) => (
-              <rect
-                key={`${color}-finish-${fi}`}
-                x={pos.x - 0.4}
-                y={pos.y - 0.4}
-                width="0.8"
-                height="0.8"
-                fill={COLORS[color].bg}
-                opacity={0.4}
-                rx="0.2"
-              >
-                {fi === 3 && (
-                  <text
-                    x={pos.x}
-                    y={pos.y + 0.15}
-                    fontSize="0.35"
-                    fill={COLORS[color].text}
-                    textAnchor="middle"
-                  >
-                    ⭐
-                  </text>
-                )}
-              </rect>
-            ));
-          })}
+          {PLAYER_ORDER.map((color) => (
+            <g key={`finish-${color}`}>
+              {FINISH_POSITIONS[color].map((pos, fi) => (
+                <rect
+                  key={fi}
+                  x={pos.x}
+                  y={pos.y}
+                  width="1"
+                  height="1"
+                  fill={COLORS[color].bg}
+                  opacity={0.4}
+                />
+              ))}
+            </g>
+          ))}
+          
+          <rect x="5" y="5" width="5" height="5" fill="#fff" opacity="0.8" />
+          <text x="7.5" y="7.8" fontSize="1" textAnchor="middle">🏠</text>
         </svg>
         
         {gameState.planes.map((plane) => {
@@ -548,16 +540,16 @@ export default function FlightChessPage() {
           return (
             <div
               key={plane.id}
-              className={`absolute flex items-center justify-center rounded-full cursor-pointer transition-all duration-300 ${isMovable ? "hover:scale-110" : ""} ${isSelected ? "ring-2 ring-white ring-offset-2" : ""}`}
+              className={`absolute flex items-center justify-center rounded-full cursor-pointer transition-all duration-300 ${isMovable ? "hover:scale-110" : ""}`}
               style={{
-                left: `${((pos.x - 0.5) / MAP_WIDTH) * 100}%`,
-                top: `${((pos.y - 0.5) / MAP_HEIGHT) * 100}%`,
-                width: "24px",
-                height: "24px",
+                left: `${((pos.x + 0.5) / BOARD_SIZE) * 100}%`,
+                top: `${((pos.y + 0.5) / BOARD_SIZE) * 100}%`,
+                width: "7%",
+                height: "7%",
+                transform: `translate(-50%, -50%) ${isMovable ? "scale(1.15)" : "scale(1)"}`,
                 backgroundColor: COLORS[plane.color].bg,
-                boxShadow: `0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)`,
+                boxShadow: `0 2px 6px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)`,
                 border: `2px solid ${COLORS[plane.color].border}`,
-                transform: isMovable ? "scale(1.1)" : "scale(1)",
                 zIndex: isSelected ? 10 : 1,
               }}
               onClick={() => {
@@ -657,98 +649,100 @@ export default function FlightChessPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex flex-col items-center justify-center p-2">
-      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 shadow-2xl w-full" style={{ maxWidth: "750px", maxHeight: "95vh", display: "flex", flexDirection: "column" }}>
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={() => goHome()}
-            className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>返回</span>
-          </button>
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            ✈️ 飞行棋
-          </h1>
-          <button
-            onClick={initGame}
-            className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
+    <div className="fixed inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center p-2 overflow-hidden">
+      <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 shadow-2xl w-full h-full flex gap-3" style={{ maxWidth: "900px", maxHeight: "95vh" }}>
+        <div className="flex-1 flex flex-col justify-center min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => goHome()}
+              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>返回</span>
+            </button>
+            <h1 className="text-base font-bold flex items-center gap-1">
+              ✈️ 飞行棋
+            </h1>
+            <button
+              onClick={initGame}
+              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <div className="mb-2">
+            {gameState.showCard && gameState.lastCard && (
+              <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-xl p-2 mb-1 animate-pulse">
+                <p className="text-center font-medium text-gray-700 text-xs">{gameState.lastCard}</p>
+              </div>
+            )}
+            <p className="text-center text-gray-600 text-xs">{gameState.message}</p>
+          </div>
+          
+          {renderBoard()}
         </div>
         
-        <div className="mb-3">
-          {gameState.showCard && gameState.lastCard && (
-            <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300 rounded-xl p-3 mb-2 animate-pulse">
-              <p className="text-center font-medium text-gray-700 text-sm">{gameState.lastCard}</p>
-            </div>
-          )}
-          <p className="text-center text-gray-600 text-xs">{gameState.message}</p>
-        </div>
-        
-        {renderBoard()}
-        
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {PLAYER_ORDER.map((color) => {
-            const info = getPlayerInfo(color);
-            const isCurrent = gameState.currentPlayer === color;
-            const finishedCount = gameState.planes.filter((p) => p.color === color && p.finished).length;
-            
-            return (
-              <div
-                key={color}
-                className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${
-                  isCurrent ? "ring-2 ring-offset-1" : ""
-                }`}
-                style={{
-                  backgroundColor: isCurrent ? COLORS[color].bg : "#f3f4f6",
-                  color: isCurrent ? COLORS[color].text : "#374151",
-                  "--tw-ring-color": COLORS[color].bg,
-                } as React.CSSProperties}
-              >
+        <div className="w-28 flex flex-col justify-between gap-2 flex-shrink-0">
+          <div className="flex flex-col gap-2">
+            {PLAYER_ORDER.map((color) => {
+              const info = getPlayerInfo(color);
+              const isCurrent = gameState.currentPlayer === color;
+              const finishedCount = gameState.planes.filter((p) => p.color === color && p.finished).length;
+              
+              return (
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                  style={{ backgroundColor: COLORS[color].bg }}
+                  key={color}
+                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                    isCurrent ? "ring-2 ring-offset-1" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isCurrent ? COLORS[color].bg : "#f3f4f6",
+                    color: isCurrent ? COLORS[color].text : "#374151",
+                    "--tw-ring-color": COLORS[color].bg,
+                  } as React.CSSProperties}
                 >
-                  {info.avatarImage ? (
-                    <img src={info.avatarImage} alt="" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <span style={{ color: COLORS[color].text }}>{info.avatarText}</span>
-                  )}
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-medium truncate max-w-[60px]">{info.name}</p>
-                  <p className="text-[10px] opacity-70">{finishedCount}/4</p>
-                </div>
-                {isCurrent && (
-                  <span className="text-[10px] font-bold">👑</span>
-                )}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
+                    style={{ backgroundColor: COLORS[color].bg }}
+                  >
+                    {info.avatarImage ? (
+                      <img src={info.avatarImage} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span style={{ color: COLORS[color].text }}>{info.avatarText}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{info.name}</p>
+                    <p className="text-[10px] opacity-70">{finishedCount}/4</p>
+                  </div>
+                  {isCurrent && <span className="text-xs">👑</span>}
                 </div>
               );
             })}
           </div>
-        
-        <div className="mt-3 flex flex-col items-center gap-2">
-          {gameState.dice !== null && (
-            <div className="flex items-center gap-2 text-base font-bold">
-              <Dices className="w-5 h-5" />
-              <span>{gameState.dice} 点</span>
-            </div>
-          )}
           
-          <button
-            onClick={rollDice}
-            disabled={!isMyTurn || gameState.isRolling || gameState.dice !== null}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-white transition-all ${
-              isMyTurn && !gameState.isRolling && gameState.dice === null
-                ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                : "bg-gray-300 cursor-not-allowed"
-            }`}
-          >
-            <Dices className={`w-4 h-4 ${gameState.isRolling ? "animate-spin" : ""}`} />
-            {gameState.isRolling ? "投掷中..." : isMyTurn ? "投骰子" : "对方回合"}
-          </button>
+          <div className="flex flex-col items-center gap-2 mt-auto">
+            {gameState.dice !== null && (
+              <div className="flex items-center gap-1 text-sm font-bold">
+                <Dices className="w-4 h-4" />
+                <span>{gameState.dice}</span>
+              </div>
+            )}
+            
+            <button
+              onClick={rollDice}
+              disabled={!isMyTurn || gameState.isRolling || gameState.dice !== null}
+              className={`w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl font-bold text-white text-sm transition-all ${
+                isMyTurn && !gameState.isRolling && gameState.dice === null
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 shadow-md"
+                  : "bg-gray-300 cursor-not-allowed"
+              }`}
+            >
+              <Dices className={`w-4 h-4 ${gameState.isRolling ? "animate-spin" : ""}`} />
+              {gameState.isRolling ? "..." : isMyTurn ? "投骰" : "等待"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
