@@ -362,20 +362,6 @@ export default function MessageList() {
             );
           }
 
-          if (m.type === "flychess" && m.flychess) {
-            return (
-              <FlyChessBubble
-                key={m.id}
-                message={m}
-                side={side}
-                getContactName={getContactName}
-                getAvatarText={getAvatarText}
-                getAvatarImage={getAvatarImage}
-                bubbleStyle={bubbleStyle}
-              />
-            );
-          }
-
           if (m.type === "poll" && m.poll) {
             return (
               <PollBubble
@@ -1337,106 +1323,6 @@ function PollBubble({
               </div>
             );
           })}
-        </div>
-        <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-        </span>
-      </div>
-      {!isLeft && (
-        <div className="flex w-9 shrink-0 justify-center">
-          <MessageAvatar
-            senderId={message.sender}
-            avatarText={getAvatarText(message.sender)}
-            avatarImage={getAvatarImage(message.sender)}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FlyChessBubble({
-  message,
-  side,
-  getContactName,
-  getAvatarText,
-  getAvatarImage,
-  bubbleStyle,
-}: {
-  message: Message;
-  side: "left" | "right";
-  getContactName: (id: string) => string;
-  getAvatarText: (id: string) => string;
-  getAvatarImage: (id: string) => string;
-  bubbleStyle: React.CSSProperties;
-}) {
-  const isLeft = side === "left";
-  const flychess = message.flychess!;
-  const time = new Date(message.timestamp).toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const setPhoneOpen = useAppStore((s) => s.setPhoneOpen);
-  const setPhoneAppId = useAppStore((s) => s.setPhoneAppId);
-
-  const handleStartGame = () => {
-    setPhoneAppId("flychess");
-    setPhoneOpen(true);
-  };
-
-  const playerColors = ["#FF6B6B", "#4ECDC4", "#FFE66D", "#5C9EFF"];
-
-  return (
-    <div className={`flex items-center gap-2 ${isLeft ? "justify-start" : "justify-end"}`}>
-      {isLeft && (
-        <div className="flex w-9 shrink-0 justify-center">
-          <MessageAvatar
-            senderId={message.sender}
-            avatarText={getAvatarText(message.sender)}
-            avatarImage={getAvatarImage(message.sender)}
-          />
-        </div>
-      )}
-      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
-        <div
-          className="animate-bubbleIn px-4 py-3"
-          style={{
-            ...bubbleStyle,
-            background: isLeft ? "var(--her-card)" : "var(--my-bubble)",
-            color: isLeft ? "var(--text)" : "var(--my-bubble-text)",
-            minWidth: "220px",
-          }}
-        >
-          <div className="text-sm mb-2 font-medium flex items-center gap-2">
-            <span>✈️</span>
-            <span>飞行棋游戏 ({flychess.playerCount}人局)</span>
-          </div>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {flychess.players.map((playerId, idx) => (
-              <div
-                key={playerId}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs"
-                style={{
-                  background: `${playerColors[idx % playerColors.length]}22`,
-                  color: playerColors[idx % playerColors.length],
-                  border: `1px solid ${playerColors[idx % playerColors.length]}`,
-                }}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ background: playerColors[idx % playerColors.length] }} />
-                <span>{getContactName(playerId)}</span>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={handleStartGame}
-            className="w-full py-2 rounded-xl text-sm font-medium transition hover:opacity-90 active:scale-95"
-            style={{
-              background: "var(--accent)",
-              color: "var(--card)",
-            }}
-          >
-            开始游戏
-          </button>
         </div>
         <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}

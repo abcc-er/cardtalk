@@ -1,5 +1,5 @@
 import { useState, useRef, type KeyboardEvent } from "react";
-import { Send, Smile, X, ImageIcon, Gamepad2 } from "lucide-react";
+import { Send, Smile, X, ImageIcon } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { compressImage } from "@/lib/utils";
 
@@ -9,12 +9,10 @@ export default function InputBar() {
   const send = useAppStore((s) => s.send);
   const sendStickerInConv = useAppStore((s) => s.sendStickerInConv);
   const sendImageInConv = useAppStore((s) => s.sendImageInConv);
-  const sendFlyChess = useAppStore((s) => s.sendFlyChess);
   const stickers = useAppStore((s) => s.stickers);
   const quotingMessageId = useAppStore((s) => s.quotingMessageId);
   const [text, setText] = useState("");
   const [showStickers, setShowStickers] = useState(false);
-  const [showGames, setShowGames] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
@@ -51,12 +49,6 @@ export default function InputBar() {
       console.error("图片发送失败", err);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const onPickFlyChess = (playerCount: 2 | 3 | 4) => {
-    if (!activeConv) return;
-    sendFlyChess(activeConv.id, playerCount);
-    setShowGames(false);
   };
 
   const placeholder = isGroup
@@ -160,48 +152,6 @@ export default function InputBar() {
         </div>
       )}
 
-      {showGames && (
-        <div
-          className="mx-auto mb-2 max-w-3xl animate-slideUp rounded-2xl border p-2"
-          style={{
-            borderColor: "var(--card-border)",
-            background: "var(--card)",
-          }}
-        >
-          <div className="mb-1 flex items-center justify-between px-1">
-            <span className="text-[11px]" style={{ color: "var(--text-soft)" }}>
-              游戏 · 选择人数
-            </span>
-            <button
-              onClick={() => setShowGames(false)}
-              className="flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-black/10"
-              style={{ color: "var(--text-soft)" }}
-              aria-label="关闭"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex gap-2 p-2">
-            {[2, 3, 4].map((count) => (
-              <button
-                key={count}
-                onClick={() => onPickFlyChess(count as 2 | 3 | 4)}
-                className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl transition hover:bg-black/5 active:scale-95"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--card-border)",
-                }}
-              >
-                <div className="text-2xl">✈️</div>
-                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>
-                  {count}人飞行棋
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="mx-auto flex max-w-3xl items-end gap-3 px-1">
         <button
           onClick={() => setShowStickers(!showStickers)}
@@ -229,20 +179,6 @@ export default function InputBar() {
           title="发送图片"
         >
           <ImageIcon className="h-5 w-5" />
-        </button>
-
-        <button
-          onClick={() => { setShowGames(!showGames); setShowStickers(false); }}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5 cute-game-btn"
-          style={{
-            borderColor: showGames ? "var(--accent)" : "var(--card-border)",
-            background: showGames ? "var(--accent)" : "var(--card)",
-            color: showGames ? "var(--card)" : "var(--text-soft)",
-          }}
-          aria-label="游戏"
-          title="游戏"
-        >
-          <Gamepad2 className="h-5 w-5" />
         </button>
 
         <div

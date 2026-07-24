@@ -1,5 +1,6 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "@/pages/Home";
+import FlightChessPage from "@/pages/FlightChessPage";
 import ThemeApplier from "@/theme/ThemeApplier";
 import FloatingPhone from "@/components/FloatingPhone";
 import FloatingMusic from "@/components/FloatingMusic";
@@ -9,7 +10,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/app";
 
-const basename = import.meta.env.BASE_URL;
+const hashBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
 const NOTIFICATION_ICON = "https://i.postimg.cc/ZKVRS4kH/retouch-2026071501420750.png";
 
 const DRIFT_BOTTLE_IMAGES = [
@@ -111,7 +112,7 @@ export default function App() {
   useEffect(() => {
     DRIFT_BOTTLE_IMAGES.forEach((path) => {
       const img = new Image();
-      img.src = `${basename}${path}`;
+      img.src = `${hashBasename}/${path}`;
     });
   }, []);
 
@@ -119,9 +120,37 @@ export default function App() {
     <>
       <ThemeApplier />
       <ErrorBoundary>
-        <Router basename={basename}>
+        <Router>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route
+              path="/flight-chess"
+              element={
+                <ErrorBoundary
+                  fallback={
+                    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-br from-purple-500 to-pink-500 p-8 text-center text-white">
+                      <div className="text-5xl">😵</div>
+                      <h2 className="text-lg font-bold">飞行棋出了点问题</h2>
+                      <button
+                        onClick={() => {
+                          sessionStorage.removeItem("flight-chess-entered");
+                          window.location.hash = "#/";
+                          setTimeout(() => {
+                            window.location.href =
+                              window.location.origin + window.location.pathname + window.location.search + "#/";
+                          }, 50);
+                        }}
+                        className="rounded-full bg-white px-6 py-2 text-sm font-bold text-purple-600"
+                      >
+                        返回主页
+                      </button>
+                    </div>
+                  }
+                >
+                  <FlightChessPage />
+                </ErrorBoundary>
+              }
+            />
           </Routes>
         </Router>
       </ErrorBoundary>

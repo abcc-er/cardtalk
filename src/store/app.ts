@@ -87,6 +87,7 @@ interface ConversationStore {
   conversations: Conversation[];
   activeConversationId: string;
   groupConversationId: string;
+  groupChatEnabled: boolean;
   quotingMessageId: string | null;
   tomatoThrows: TomatoThrow[];
   tomatoStats: Record<string, { thrownByMe: number; thrownAtMe: number }>;
@@ -94,6 +95,9 @@ interface ConversationStore {
   addPrivateConversation: (contactId: string) => string;
   addToGroup: (contactId: string) => void;
   renameGroup: (name: string) => void;
+  setGroupChatEnabled: (enabled: boolean) => void;
+  createGroupChat: (name: string, memberIds: string[]) => string;
+  updateGroupMembers: (conversationId: string, memberIds: string[]) => void;
   send: (conversationId: string, text: string) => void;
   sendStickerInConv: (conversationId: string, image: string, senderId: string) => void;
   sendImageInConv: (conversationId: string, image: string, senderId: string) => void;
@@ -311,7 +315,7 @@ function createContact(name: string, avatar = "他"): Contact {
 const DEFAULT_CONTACT_NAME = "宝宝";
 
 function createInitialState() {
-  const defaultContact = createContact(DEFAULT_CONTACT_NAME, "他");
+  const defaultContact = createContact(DEFAULT_CONTACT_NAME, DEFAULT_CONTACT_NAME.substring(0, 1));
   const groupId = uid("grp");
 
   const seedMessages: Message[] = [
@@ -372,6 +376,7 @@ function createInitialState() {
     conversations: [groupConv, privateConv],
     activeConversationId: privateConv.id,
     groupConversationId: groupId,
+    groupChatEnabled: true,
   };
 }
 
@@ -1089,11 +1094,15 @@ export const useAppStore = create<
                 const existing = newCards[m] || [];
                 const imported = data.cards[m].map((c: any, i: number) => {
                   const content = String(c.content || c.name || "");
+                  const groupName = m === "chat" ? (c.group || "日常") : undefined;
+                  if (groupName && !newGroups.includes(groupName)) {
+                    newGroups.push(groupName);
+                  }
                   return {
                     id: `${m}-imp-${i}-${Date.now()}`,
                     name: content || "未命名",
                     content,
-                    group: m === "chat" ? (c.group || "日常") : undefined,
+                    group: groupName,
                   };
                 });
                 newCards[m] = [...existing, ...imported];
@@ -1310,6 +1319,44 @@ export const useAppStore = create<
         set((s) => ({
           conversations: s.conversations.map((conv) =>
             conv.id === groupId ? { ...conv, name } : conv
+          ),
+        }));
+      },
+
+      setGroupChatEnabled: (enabled) => {
+        set({ groupChatEnabled: enabled });
+      },
+
+      createGroupChat: (name, memberIds) => {
+        const newGroupId = uid("group");
+        const sysMsg: Message = {
+          id: uid("sys"),
+          sender: "system",
+          type: "system",
+          systemText: `群聊「${name}」已创建`,
+          timestamp: Date.now(),
+        };
+        const newGroup: Conversation = {
+          id: newGroupId,
+          type: "group",
+          name,
+          messages: [sysMsg],
+          isFlipping: false,
+          view: "me",
+          memberIds,
+        };
+        set((s) => ({
+          conversations: [...s.conversations, newGroup],
+          activeConversationId: newGroupId,
+          groupConversationId: newGroupId,
+        }));
+        return newGroupId;
+      },
+
+      updateGroupMembers: (conversationId, memberIds) => {
+        set((s) => ({
+          conversations: s.conversations.map((conv) =>
+            conv.id === conversationId ? { ...conv, memberIds } : conv
           ),
         }));
       },
@@ -2470,6 +2517,67 @@ export const useAppStore = create<
           return;
         }
 
+        const activeConvExists = state.conversations.some((c: any) => c.id === state.activeConversationId);
+        if (!activeConvExists) {
+          state.activeConversationId = state.conversations[0].id;
+        }
+
+        for (const conv of state.conversations) {
+          if (!conv.messages || !Array.isArray(conv.messages)) {
+            conv.messages = [];
+          }
+          if (!conv.type) conv.type = "private";
+          if (!conv.view) conv.view = "me";
+          if (!conv.memberIds || !Array.isArray(conv.memberIds)) {
+            conv.memberIds = [];
+          }
+          if (!conv.isFlipping) conv.isFlipping = false;
+
+          const contactIds = state.contacts.map((c: any) => c.id);
+          conv.memberIds = conv.memberIds.filter((mid: string) => contactIds.includes(mid));
+
+          if (conv.type === "private" && conv.memberIds.length === 0) {
+            const firstContact = state.contacts[0];
+            if (firstContact) {
+              conv.memberIds = [firstContact.id];
+              conv.name = firstContact.name;
+            }
+          }
+
+          if (conv.messages.length === 0) {
+            if (conv.type === "private") {
+              const contact = state.contacts.find((c: any) => c.id === conv.memberIds[0]);
+              const contactName = contact?.name || "对方";
+              conv.messages = [
+                {
+                  id: uid("msg-init"),
+                  sender: "me",
+                  type: "text",
+                  text: "在吗？最近怎么样。",
+                  timestamp: Date.now() - 1000 * 60 * 6,
+                },
+                {
+                  id: uid("msg-init2"),
+                  sender: conv.memberIds[0],
+                  type: "text",
+                  text: "嗯，在。我在听，你说。",
+                  timestamp: Date.now() - 1000 * 60 * 5,
+                },
+              ];
+            } else {
+              conv.messages = [
+                {
+                  id: uid("msg-init"),
+                  sender: "system",
+                  type: "system",
+                  systemText: `${conv.name} 创建了群聊`,
+                  timestamp: Date.now() - 1000 * 60 * 30,
+                },
+              ];
+            }
+          }
+        }
+
         for (const c of state.contacts) {
           if (!c.status?.meals) c.status.meals = [];
           if (!c.status?.notes) c.status.notes = [];
@@ -2479,6 +2587,7 @@ export const useAppStore = create<
           if (c.status?.mood?.isAngry === undefined) c.status.mood.isAngry = false;
           if (!c.status?.mood?.curve) c.status.mood.curve = [50, 52, 55, 58, 56, 60, 62, 60, 58, 55, 57, 60];
           if (!c.riceFullness) c.riceFullness = 0;
+          if (c.avatar === "他" && c.name) c.avatar = c.name.substring(0, 1);
           if (!c.cards) {
             c.cards = createDefaultCards();
           } else {
@@ -2493,7 +2602,7 @@ export const useAppStore = create<
         if (!state.cardGroups) state.cardGroups = ["日常", "撒娇", "关心"];
         if (!state.phoneAppId) state.phoneAppId = "home";
         if (!state.stickers) state.stickers = [];
-        if (!state.activeCardLibContactId) state.activeCardLibContactId = null;
+        if (!state.activeCardLibContactId) state.activeCardLibContactId = state.contacts.length > 0 ? state.contacts[0].id : null;
         if (!state.beauty?.myName) state.beauty.myName = "我";
         if (!state.beauty?.herName) state.beauty.herName = "宝宝";
         if (state.beauty?.myAvatarImage === undefined) state.beauty.myAvatarImage = "";
@@ -2746,22 +2855,12 @@ export const useAppStore = create<
         setupAutoActions();
 
         const setupTravelUpdate = () => {
-          const minHours = 1;
-          const maxHours = 3;
+          const hours = 2;
+          const interval = hours * 60 * 60 * 1000;
           const lastAt = useAppStore.getState().lastTravelUpdateAt || 0;
           const now = Date.now();
-          const minInterval = minHours * 60 * 60 * 1000;
-          const maxInterval = maxHours * 60 * 60 * 1000;
-
-          let delay: number;
-          if (lastAt === 0) {
-            delay = Math.random() * (maxInterval - minInterval) + minInterval;
-          } else {
-            const elapsed = now - lastAt;
-            const randomInterval = Math.random() * (maxInterval - minInterval) + minInterval;
-            const remaining = randomInterval - elapsed;
-            delay = Math.max(remaining, minInterval / 2);
-          }
+          const elapsed = now - lastAt;
+          const delay = Math.max(interval - elapsed, 5 * 60 * 1000); // 至少5分钟
 
           window.setTimeout(() => {
             const store = useAppStore.getState();
@@ -2771,6 +2870,20 @@ export const useAppStore = create<
                 const randomCard = travelCards[Math.floor(Math.random() * travelCards.length)];
                 const weathers = ["晴", "多云", "阴", "小雨", "微风", "晴转多云", "多云转阴"];
                 const temps = [18, 20, 22, 24, 26, 28, 19, 21, 23, 25];
+                // 生成随机行程
+                const scheduleCount = Math.floor(Math.random() * 3) + 2; // 2-4个行程
+                const newSchedule = [];
+                for (let i = 0; i < scheduleCount; i++) {
+                  const scheduleCard = travelCards[Math.floor(Math.random() * travelCards.length)];
+                  const hours = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+                  newSchedule.push({
+                    time: `${hours[Math.floor(Math.random() * hours.length)]}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
+                    place: scheduleCard.content,
+                    note: undefined,
+                  });
+                }
+                // 按时间排序
+                newSchedule.sort((a, b) => a.time.localeCompare(b.time));
                 useAppStore.setState((s) => ({
                   contacts: s.contacts.map((c) =>
                     c.id === contact.id
@@ -2783,6 +2896,7 @@ export const useAppStore = create<
                               location: randomCard.content,
                               weather: weathers[Math.floor(Math.random() * weathers.length)],
                               temperature: temps[Math.floor(Math.random() * temps.length)],
+                              schedule: newSchedule,
                             },
                           },
                         }
