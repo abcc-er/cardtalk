@@ -420,7 +420,7 @@ export default function MessageList() {
                   />
                 </div>
               )}
-              <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
+              <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
                 {isLeft && m.sender !== "me" && (
                   <span
                     className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1 relative z-10"
@@ -993,7 +993,7 @@ function MessageBubble({
 
   if (message.type === "image" && message.image) {
     return (
-      <div className="flex w-fit flex-col items-start max-w-[70%]">
+      <div className="flex flex-col items-start">
         <img
           src={message.image}
           alt="image"
@@ -1013,7 +1013,7 @@ function MessageBubble({
 
   if (message.type === "sticker") {
     return (
-      <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"} max-w-[70%]`}>
+      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`}>
         {message.moodTag && (
           <span
             className="mb-1 ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]"
