@@ -173,6 +173,25 @@ html[data-wallpaper="custom"] .chat-bg {
     animation-timing-function: ease-out;
   }
 }
+@keyframes tomatoFly {
+  0% {
+    left: var(--tomato-from-x);
+    top: 20px;
+    transform: scale(0.8) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    top: -10px;
+    transform: scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    left: var(--tomato-to-x);
+    top: 20px;
+    transform: scale(1) rotate(360deg);
+    opacity: 0.8;
+  }
+}
 @keyframes tomatoSplat {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.3); opacity: 0.8; }

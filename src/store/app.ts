@@ -192,6 +192,7 @@ interface GlobalState {
   pickBottleOcean: (contactId: string, content: string) => string;
   replyBottleOcean: (contactId: string, id: string, reply: string) => void;
   receiveBottleOceanReply: (contactId: string, id: string, reply: string) => void;
+  receiveBottleOceanReplyAt: (contactId: string, id: string, reply: string, replyAt: number) => void;
   sendBottleLetter: (contactId: string, content: string, font: string, fontSize: number) => void;
   showMemoBar: boolean;
   toggleMemoBar: () => void;
@@ -805,6 +806,18 @@ export const useAppStore = create<
           };
           return { bottleData: data };
         }),
+      receiveBottleOceanReplyAt: (contactId, id, reply, replyAt) =>
+        set((s) => {
+          const data = { ...s.bottleData };
+          const bd = getBottleData(data, contactId);
+          data[contactId] = {
+            ...bd,
+            diary: bd.diary.map((d) =>
+              d.id === id ? { ...d, herReply: reply, herReplyAt: replyAt } : d
+            ),
+          };
+          return { bottleData: data };
+        }),
       sendBottleLetter: (contactId, content, font, fontSize) => {
         const letterId = uid("bletter");
         const now = Date.now();
@@ -858,7 +871,7 @@ export const useAppStore = create<
                 ...bd2,
                 letters: bd2.letters.map((l) =>
                   l.id === letterId
-                    ? { ...l, replyAt: Date.now(), reply: replyText }
+                    ? { ...l, replyAt: expectedReplyAt, reply: replyText }
                     : l
                 ),
                 diary: bd2.diary.map((d) =>
@@ -878,48 +891,48 @@ export const useAppStore = create<
 
       addCard: (contactId, module, card) =>
         set((s) => ({
-          contacts: s.contacts.map((c) =>
-            c.id === contactId
-              ? { ...c, cards: { ...c.cards, [module]: [...c.cards[module], { ...card, id: uid(module) }] } }
-              : c
-          ),
+          contacts: s.contacts.map((c) => {
+            if (c.id !== contactId) return c;
+            const moduleCards = c.cards?.[module] || [];
+            return { ...c, cards: { ...c.cards, [module]: [...moduleCards, { ...card, id: uid(module) }] } };
+          }),
         })),
 
       deleteCard: (contactId, module, id) =>
         set((s) => ({
-          contacts: s.contacts.map((c) =>
-            c.id === contactId
-              ? { ...c, cards: { ...c.cards, [module]: c.cards[module].filter((x) => x.id !== id) } }
-              : c
-          ),
+          contacts: s.contacts.map((c) => {
+            if (c.id !== contactId) return c;
+            const moduleCards = c.cards?.[module] || [];
+            return { ...c, cards: { ...c.cards, [module]: moduleCards.filter((x) => x.id !== id) } };
+          }),
         })),
 
       updateCard: (contactId, module, id, updates) =>
         set((s) => ({
-          contacts: s.contacts.map((c) =>
-            c.id === contactId
-              ? {
-                  ...c,
-                  cards: {
-                    ...c.cards,
-                    [module]: c.cards[module].map((x) =>
-                      x.id === id ? { ...x, ...updates } : x
-                    ),
-                  },
-                }
-              : c
-          ),
+          contacts: s.contacts.map((c) => {
+            if (c.id !== contactId) return c;
+            const moduleCards = c.cards?.[module] || [];
+            return {
+              ...c,
+              cards: {
+                ...c.cards,
+                [module]: moduleCards.map((x) =>
+                  x.id === id ? { ...x, ...updates } : x
+                ),
+              },
+            };
+          }),
         })),
 
       deleteCards: (contactId, module, ids) =>
         set((s) => {
           const idSet = new Set(ids);
           return {
-            contacts: s.contacts.map((c) =>
-              c.id === contactId
-                ? { ...c, cards: { ...c.cards, [module]: c.cards[module].filter((x) => !idSet.has(x.id)) } }
-                : c
-            ),
+            contacts: s.contacts.map((c) => {
+              if (c.id !== contactId) return c;
+              const moduleCards = c.cards?.[module] || [];
+              return { ...c, cards: { ...c.cards, [module]: moduleCards.filter((x) => !idSet.has(x.id)) } };
+            }),
           };
         }),
 
@@ -927,7 +940,7 @@ export const useAppStore = create<
         const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         const contact = get().contacts.find((c) => c.id === contactId);
         if (!contact) return { added: 0, duplicates: 0 };
-        const existing = contact.cards[module];
+        const existing = contact.cards?.[module] || [];
         const existingNames = new Set(existing.map((c) => c.name));
         const added: Card[] = [];
         let duplicates = 0;
@@ -952,11 +965,11 @@ export const useAppStore = create<
         }
 
         set((s) => ({
-          contacts: s.contacts.map((c) =>
-            c.id === contactId
-              ? { ...c, cards: { ...c.cards, [module]: [...c.cards[module], ...added] } }
-              : c
-          ),
+          contacts: s.contacts.map((c) => {
+            if (c.id !== contactId) return c;
+            const moduleCards = c.cards?.[module] || [];
+            return { ...c, cards: { ...c.cards, [module]: [...moduleCards, ...added] } };
+          }),
         }));
         return { added: added.length, duplicates };
       },
@@ -2591,9 +2604,9 @@ export const useAppStore = create<
           if (!c.cards) {
             c.cards = createDefaultCards();
           } else {
-            // 补全所有缺失的模块
+            // 补全所有缺失的模块（仅补全不存在的模块，不覆盖已清空的模块）
             (Object.keys(INITIAL_CARDS) as CardModule[]).forEach((m) => {
-              if (!c.cards[m] || c.cards[m].length === 0) {
+              if (!c.cards[m]) {
                 c.cards[m] = JSON.parse(JSON.stringify(INITIAL_CARDS[m]));
               }
             });
@@ -2651,32 +2664,48 @@ export const useAppStore = create<
           const st = useAppStore.getState();
           const now = Date.now();
 
-          // 遍历所有联系人的 bottleData
           Object.keys(st.bottleData).forEach((contactId) => {
             const bd = st.bottleData[contactId];
             if (!bd) return;
+            const contact = st.contacts.find((c: any) => c.id === contactId);
+            const chatCards = contact?.cards?.chat || [];
+
+            const generateReplyText = () => {
+              if (chatCards.length === 0) return null;
+              const replyCount = Math.floor(Math.random() * 7) + 6;
+              const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
+              const selected = shuffled.slice(0, Math.min(replyCount, shuffled.length));
+              return selected.map((c) => c.content).join("\n\n---\n\n");
+            };
 
             // 1. 恢复海洋小物待回复
             bd.diary.forEach((d) => {
-              if (d.type === "ocean" && d.reply && !d.herReply && d.expectedHerReplyAt && d.expectedHerReplyAt > now) {
-                const delay = d.expectedHerReplyAt - now;
-                window.setTimeout(() => {
-                  const state2 = useAppStore.getState();
-                  const contact = state2.contacts.find((c) => c.id === contactId);
-                  const chatCards = contact?.cards.chat || [];
-                  if (chatCards.length === 0) return;
-                  const randomCard = chatCards[Math.floor(Math.random() * chatCards.length)];
-                  useAppStore.getState().receiveBottleOceanReply(contactId, d.id, randomCard.content);
-                }, delay);
+              if (d.type === "ocean" && d.reply && !d.herReply && d.expectedHerReplyAt) {
+                if (d.expectedHerReplyAt <= now) {
+                  // 时间已过，立即回复
+                  const randomCard = chatCards.length > 0 ? chatCards[Math.floor(Math.random() * chatCards.length)] : null;
+                  if (randomCard) {
+                    useAppStore.getState().receiveBottleOceanReplyAt(contactId, d.id, randomCard.content, d.expectedHerReplyAt);
+                  }
+                } else {
+                  const delay = d.expectedHerReplyAt - now;
+                  window.setTimeout(() => {
+                    const state2 = useAppStore.getState();
+                    const contact2 = state2.contacts.find((c: any) => c.id === contactId);
+                    const cards2 = contact2?.cards?.chat || [];
+                    if (cards2.length === 0) return;
+                    const randomCard = cards2[Math.floor(Math.random() * cards2.length)];
+                    useAppStore.getState().receiveBottleOceanReply(contactId, d.id, randomCard.content);
+                  }, delay);
+                }
               }
             });
 
             // 2. 恢复信件待收到/待回复
             bd.letters.forEach((letter) => {
-              if (!letter.receivedAt && letter.expectedReceiveAt && letter.expectedReceiveAt > now) {
-                // 还没收到，设置收到定时器
-                const receiveDelay = letter.expectedReceiveAt - now;
-                window.setTimeout(() => {
+              if (!letter.receivedAt && letter.expectedReceiveAt) {
+                if (letter.expectedReceiveAt <= now) {
+                  // 时间已过，立即标记为已收到
                   useAppStore.setState((s) => {
                     const data = { ...s.bottleData };
                     const bd2 = data[contactId];
@@ -2684,25 +2713,45 @@ export const useAppStore = create<
                     data[contactId] = {
                       ...bd2,
                       letters: bd2.letters.map((l) =>
-                        l.id === letter.id ? { ...l, receivedAt: Date.now() } : l
+                        l.id === letter.id ? { ...l, receivedAt: l.expectedReceiveAt } : l
                       ),
                     };
                     return { bottleData: data };
                   });
-
-                  // 收到后设置回复定时器
-                  const state3 = useAppStore.getState();
-                  const bd3 = state3.bottleData[contactId];
-                  const updatedLetter = bd3?.letters.find((l) => l.id === letter.id);
-                  if (updatedLetter && !updatedLetter.replyAt && updatedLetter.expectedReplyAt && updatedLetter.expectedReplyAt > Date.now()) {
-                    const replyDelay = updatedLetter.expectedReplyAt - Date.now();
+                  // 然后检查是否需要立即回复
+                  if (!letter.replyAt && letter.expectedReplyAt && letter.expectedReplyAt <= now) {
+                    const replyText = generateReplyText();
+                    if (replyText) {
+                      useAppStore.setState((s) => {
+                        const data = { ...s.bottleData };
+                        const bd2 = data[contactId];
+                        if (!bd2) return s;
+                        data[contactId] = {
+                          ...bd2,
+                          letters: bd2.letters.map((l) =>
+                            l.id === letter.id
+                              ? { ...l, replyAt: letter.expectedReplyAt, reply: replyText }
+                              : l
+                          ),
+                          diary: bd2.diary.map((d) =>
+                            d.type === "letter" && d.content === letter.content && !d.reply
+                              ? { ...d, reply: replyText }
+                              : d
+                          ),
+                        };
+                        return { bottleData: data };
+                      });
+                    }
+                  } else if (!letter.replyAt && letter.expectedReplyAt && letter.expectedReplyAt > now) {
+                    // 还没到回复时间，设置定时器
+                    const replyDelay = letter.expectedReplyAt - now;
                     window.setTimeout(() => {
                       const state4 = useAppStore.getState();
-                      const contact = state4.contacts.find((c) => c.id === contactId);
-                      const chatCards = contact?.cards.chat || [];
-                      if (chatCards.length === 0) return;
+                      const contact4 = state4.contacts.find((c: any) => c.id === contactId);
+                      const cards4 = contact4?.cards?.chat || [];
+                      if (cards4.length === 0) return;
                       const replyCount = Math.floor(Math.random() * 7) + 6;
-                      const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
+                      const shuffled = [...cards4].sort(() => Math.random() - 0.5);
                       const selected = shuffled.slice(0, Math.min(replyCount, shuffled.length));
                       const replyText = selected.map((c) => c.content).join("\n\n---\n\n");
                       useAppStore.setState((s) => {
@@ -2713,7 +2762,7 @@ export const useAppStore = create<
                           ...bd4,
                           letters: bd4.letters.map((l) =>
                             l.id === letter.id
-                              ? { ...l, replyAt: Date.now(), reply: replyText }
+                              ? { ...l, replyAt: letter.expectedReplyAt, reply: replyText }
                               : l
                           ),
                           diary: bd4.diary.map((d) =>
@@ -2726,39 +2775,118 @@ export const useAppStore = create<
                       });
                     }, replyDelay);
                   }
-                }, receiveDelay);
-              } else if (letter.receivedAt && !letter.replyAt && letter.expectedReplyAt && letter.expectedReplyAt > now) {
-                // 已经收到但还没回复，设置回复定时器
-                const replyDelay = letter.expectedReplyAt - now;
-                window.setTimeout(() => {
-                  const state4 = useAppStore.getState();
-                  const contact = state4.contacts.find((c) => c.id === contactId);
-                  const chatCards = contact?.cards.chat || [];
-                  if (chatCards.length === 0) return;
-                  const replyCount = Math.floor(Math.random() * 7) + 6;
-                  const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
-                  const selected = shuffled.slice(0, Math.min(replyCount, shuffled.length));
-                  const replyText = selected.map((c) => c.content).join("\n\n---\n\n");
-                  useAppStore.setState((s) => {
-                    const data = { ...s.bottleData };
-                    const bd4 = data[contactId];
-                    if (!bd4) return s;
-                    data[contactId] = {
-                      ...bd4,
-                      letters: bd4.letters.map((l) =>
-                        l.id === letter.id
-                          ? { ...l, replyAt: Date.now(), reply: replyText }
-                          : l
-                      ),
-                      diary: bd4.diary.map((d) =>
-                        d.type === "letter" && d.content === letter.content && !d.reply
-                          ? { ...d, reply: replyText }
-                          : d
-                      ),
-                    };
-                    return { bottleData: data };
-                  });
-                }, replyDelay);
+                } else {
+                  // 还没到收到时间，设置定时器
+                  const receiveDelay = letter.expectedReceiveAt - now;
+                  window.setTimeout(() => {
+                    useAppStore.setState((s) => {
+                      const data = { ...s.bottleData };
+                      const bd2 = data[contactId];
+                      if (!bd2) return s;
+                      data[contactId] = {
+                        ...bd2,
+                        letters: bd2.letters.map((l) =>
+                          l.id === letter.id ? { ...l, receivedAt: Date.now() } : l
+                        ),
+                      };
+                      return { bottleData: data };
+                    });
+                    // 收到后设置回复定时器
+                    const state3 = useAppStore.getState();
+                    const bd3 = state3.bottleData[contactId];
+                    const updatedLetter = bd3?.letters.find((l) => l.id === letter.id);
+                    if (updatedLetter && !updatedLetter.replyAt && updatedLetter.expectedReplyAt && updatedLetter.expectedReplyAt > Date.now()) {
+                      const replyDelay = updatedLetter.expectedReplyAt - Date.now();
+                      window.setTimeout(() => {
+                        const state4 = useAppStore.getState();
+                        const contact4 = state4.contacts.find((c: any) => c.id === contactId);
+                        const cards4 = contact4?.cards?.chat || [];
+                        if (cards4.length === 0) return;
+                        const replyCount = Math.floor(Math.random() * 7) + 6;
+                        const shuffled = [...cards4].sort(() => Math.random() - 0.5);
+                        const selected = shuffled.slice(0, Math.min(replyCount, shuffled.length));
+                        const replyText = selected.map((c) => c.content).join("\n\n---\n\n");
+                        useAppStore.setState((s) => {
+                          const data = { ...s.bottleData };
+                          const bd4 = data[contactId];
+                          if (!bd4) return s;
+                          data[contactId] = {
+                            ...bd4,
+                            letters: bd4.letters.map((l) =>
+                              l.id === letter.id
+                                ? { ...l, replyAt: updatedLetter.expectedReplyAt, reply: replyText }
+                                : l
+                            ),
+                            diary: bd4.diary.map((d) =>
+                              d.type === "letter" && d.content === letter.content && !d.reply
+                                ? { ...d, reply: replyText }
+                                : d
+                            ),
+                          };
+                          return { bottleData: data };
+                        });
+                      }, replyDelay);
+                    }
+                  }, receiveDelay);
+                }
+              } else if (letter.receivedAt && !letter.replyAt && letter.expectedReplyAt) {
+                if (letter.expectedReplyAt <= now) {
+                  // 时间已过，立即回复
+                  const replyText = generateReplyText();
+                  if (replyText) {
+                    useAppStore.setState((s) => {
+                      const data = { ...s.bottleData };
+                      const bd2 = data[contactId];
+                      if (!bd2) return s;
+                      data[contactId] = {
+                        ...bd2,
+                        letters: bd2.letters.map((l) =>
+                          l.id === letter.id
+                            ? { ...l, replyAt: letter.expectedReplyAt, reply: replyText }
+                            : l
+                        ),
+                        diary: bd2.diary.map((d) =>
+                          d.type === "letter" && d.content === letter.content && !d.reply
+                            ? { ...d, reply: replyText }
+                            : d
+                        ),
+                      };
+                      return { bottleData: data };
+                    });
+                  }
+                } else {
+                  // 还没到回复时间，设置定时器
+                  const replyDelay = letter.expectedReplyAt - now;
+                  window.setTimeout(() => {
+                    const state4 = useAppStore.getState();
+                    const contact4 = state4.contacts.find((c: any) => c.id === contactId);
+                    const cards4 = contact4?.cards?.chat || [];
+                    if (cards4.length === 0) return;
+                    const replyCount = Math.floor(Math.random() * 7) + 6;
+                    const shuffled = [...cards4].sort(() => Math.random() - 0.5);
+                    const selected = shuffled.slice(0, Math.min(replyCount, shuffled.length));
+                    const replyText = selected.map((c) => c.content).join("\n\n---\n\n");
+                    useAppStore.setState((s) => {
+                      const data = { ...s.bottleData };
+                      const bd4 = data[contactId];
+                      if (!bd4) return s;
+                      data[contactId] = {
+                        ...bd4,
+                        letters: bd4.letters.map((l) =>
+                          l.id === letter.id
+                            ? { ...l, replyAt: letter.expectedReplyAt, reply: replyText }
+                            : l
+                        ),
+                        diary: bd4.diary.map((d) =>
+                          d.type === "letter" && d.content === letter.content && !d.reply
+                            ? { ...d, reply: replyText }
+                            : d
+                        ),
+                      };
+                      return { bottleData: data };
+                    });
+                  }, replyDelay);
+                }
               }
             });
           });
