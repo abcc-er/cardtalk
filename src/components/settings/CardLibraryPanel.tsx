@@ -478,26 +478,18 @@ export default function CardLibraryPanel() {
       {/* 批量导入 */}
       {showImport && (
         <div className="animate-slideUp rounded-xl border p-3" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
-          <div className="mb-2 text-[10px]" style={{ color: "var(--text-soft)" }}>
-            格式：<code>卡片名|正文|印章|心情</code> 或 每行一张卡片名
-          </div>
           <textarea
             rows={5}
-            placeholder={"好。|那就这样吧。|好|平静\n不行。\n你好 | 在吗 | 嗯"}
+            placeholder={"好。\n不行。\n你好\n在吗\n嗯"}
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             className="w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
             style={{ borderColor: "var(--card-border)", background: "var(--bg)", color: "var(--text)" }}
           />
-          {importResult && importResult.added > 0 && (
-            <div className="mt-2 rounded-lg bg-green-50 px-2 py-1 text-[11px] text-green-700">
-              导入成功，新增 {importResult.added} 张
-              {importResult.duplicates > 0 && `，跳过 ${importResult.duplicates} 张重复`}
-            </div>
-          )}
-          {importResult && importResult.added === 0 && importResult.duplicates > 0 && (
-            <div className="mt-2 rounded-lg bg-yellow-50 px-2 py-1 text-[11px] text-yellow-700">
-              全部已存在，跳过 {importResult.duplicates} 张
+          {importResult && (
+            <div className="mt-2 text-[11px]" style={{ color: "var(--text-soft)" }}>
+              {importResult.added > 0 ? `已导入 ${importResult.added} 张` : "没有新增"}
+              {importResult.duplicates > 0 && `，${importResult.duplicates} 张已存在`}
             </div>
           )}
           <button

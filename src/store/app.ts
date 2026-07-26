@@ -944,23 +944,13 @@ export const useAppStore = create<
         const added: Card[] = [];
         let duplicates = 0;
 
-        const rawLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        const entries: string[][] = [];
+        const lines = text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
 
-        for (const line of rawLines) {
-          const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
-          if (parts.length === 0) continue;
-          if (parts.length <= 5) {
-            entries.push(parts);
-          } else {
-            for (const p of parts) {
-              entries.push([p]);
-            }
-          }
-        }
-
-        for (const parts of entries) {
-          const name = parts[0];
+        for (const line of lines) {
+          const name = line;
           if (!name) continue;
           if (existingNames.has(name)) {
             duplicates++;
@@ -970,10 +960,8 @@ export const useAppStore = create<
           added.push({
             id: uid(module),
             name,
-            content: parts[1] || name,
-            stamp: parts[2] || undefined,
-            mood: parts[3] || undefined,
-            group: module === "chat" ? (parts[4] || "日常") : undefined,
+            content: name,
+            group: module === "chat" ? "日常" : undefined,
           });
         }
 
