@@ -937,7 +937,6 @@ export const useAppStore = create<
         }),
 
       batchImport: (contactId, module, text) => {
-        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         const contact = get().contacts.find((c) => c.id === contactId);
         if (!contact) return { added: 0, duplicates: 0 };
         const existing = contact.cards?.[module] || [];
@@ -945,8 +944,22 @@ export const useAppStore = create<
         const added: Card[] = [];
         let duplicates = 0;
 
-        for (const line of lines) {
-          const parts = line.split("|").map((p) => p.trim());
+        const rawLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const entries: string[][] = [];
+
+        for (const line of rawLines) {
+          const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
+          if (parts.length === 0) continue;
+          if (parts.length <= 5) {
+            entries.push(parts);
+          } else {
+            for (const p of parts) {
+              entries.push([p]);
+            }
+          }
+        }
+
+        for (const parts of entries) {
           const name = parts[0];
           if (!name) continue;
           if (existingNames.has(name)) {
@@ -958,7 +971,7 @@ export const useAppStore = create<
             id: uid(module),
             name,
             content: parts[1] || name,
-            stamp: parts[2] || name.charAt(0) || "卡",
+            stamp: parts[2] || undefined,
             mood: parts[3] || undefined,
             group: module === "chat" ? (parts[4] || "日常") : undefined,
           });
