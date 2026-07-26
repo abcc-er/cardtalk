@@ -420,7 +420,7 @@ export default function MessageList() {
                   />
                 </div>
               )}
-              <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"}`}>
+              <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`} style={{ maxWidth: "78%" }}>
                 {isLeft && m.sender !== "me" && (
                   <span
                     className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1 relative z-10"
@@ -434,7 +434,7 @@ export default function MessageList() {
                     {getContactName(m.sender)}
                   </span>
                 )}
-                <div className="relative w-fit">
+                <div className="relative">
                   {beauty.petEnabled && conv?.type !== "group" && conv?.petHidden?.messageId === m.id && (
                     <button
                       className="absolute z-20 cursor-pointer overflow-visible p-0 transition hover:scale-110 active:scale-95"
@@ -993,7 +993,7 @@ function MessageBubble({
 
   if (message.type === "image" && message.image) {
     return (
-      <div className="flex w-fit flex-col items-start">
+      <>
         <img
           src={message.image}
           alt="image"
@@ -1002,18 +1002,19 @@ function MessageBubble({
             maxWidth: "240px",
             maxHeight: "280px",
             borderColor: "var(--card-border)",
+            display: "block",
           }}
         />
-        <span className="mt-1 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+        <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}
         </span>
-      </div>
+      </>
     );
   }
 
   if (message.type === "sticker") {
     return (
-      <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"}`}>
+      <>
         {message.moodTag && (
           <span
             className="mb-1 ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]"
@@ -1031,7 +1032,7 @@ function MessageBubble({
             src={message.sticker}
             alt="sticker"
             className="animate-bubbleIn rounded-xl object-contain"
-            style={{ maxWidth: "160px", maxHeight: "160px" }}
+            style={{ maxWidth: "160px", maxHeight: "160px", display: "block" }}
           />
         ) : (
           <div
@@ -1041,10 +1042,10 @@ function MessageBubble({
             [表情包]
           </div>
         )}
-        <span className="mt-1 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+        <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}
         </span>
-      </div>
+      </>
     );
   }
 
