@@ -420,7 +420,7 @@ export default function MessageList() {
                   />
                 </div>
               )}
-              <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
+              <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"}`}>
                 {isLeft && m.sender !== "me" && (
                   <span
                     className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1 relative z-10"
@@ -434,7 +434,7 @@ export default function MessageList() {
                     {getContactName(m.sender)}
                   </span>
                 )}
-                <div className="relative">
+                <div className="relative w-fit">
                   {beauty.petEnabled && conv?.type !== "group" && conv?.petHidden?.messageId === m.id && (
                     <button
                       className="absolute z-20 cursor-pointer overflow-visible p-0 transition hover:scale-110 active:scale-95"
@@ -993,13 +993,13 @@ function MessageBubble({
 
   if (message.type === "image" && message.image) {
     return (
-      <div className="flex w-fit flex-col items-start max-w-[70%]">
+      <div className="flex w-fit flex-col items-start">
         <img
           src={message.image}
           alt="image"
           className="animate-bubbleIn rounded-2xl border object-cover"
           style={{
-            maxWidth: "100%",
+            maxWidth: "240px",
             maxHeight: "280px",
             borderColor: "var(--card-border)",
           }}
@@ -1013,7 +1013,7 @@ function MessageBubble({
 
   if (message.type === "sticker") {
     return (
-      <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"} max-w-[70%]`}>
+      <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"}`}>
         {message.moodTag && (
           <span
             className="mb-1 ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]"
@@ -1030,7 +1030,8 @@ function MessageBubble({
           <img
             src={message.sticker}
             alt="sticker"
-            className="max-h-32 max-w-full animate-bubbleIn rounded-xl object-contain"
+            className="animate-bubbleIn rounded-xl object-contain"
+            style={{ maxWidth: "160px", maxHeight: "160px" }}
           />
         ) : (
           <div
