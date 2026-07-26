@@ -993,7 +993,7 @@ function MessageBubble({
 
   if (message.type === "image" && message.image) {
     return (
-      <div className="flex flex-col items-start">
+      <div className="flex w-fit flex-col items-start max-w-[70%]">
         <img
           src={message.image}
           alt="image"
@@ -1013,7 +1013,7 @@ function MessageBubble({
 
   if (message.type === "sticker") {
     return (
-      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`}>
+      <div className={`flex w-fit flex-col ${isLeft ? "items-start" : "items-end"} max-w-[70%]`}>
         {message.moodTag && (
           <span
             className="mb-1 ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px]"

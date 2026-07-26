@@ -34,7 +34,7 @@ interface CardStore {
   deleteCard: (contactId: string, module: CardModule, id: string) => void;
   updateCard: (contactId: string, module: CardModule, id: string, updates: Partial<Card>) => void;
   deleteCards: (contactId: string, module: CardModule, ids: string[]) => void;
-  batchImport: (contactId: string, module: CardModule, text: string) => { added: number; duplicates: number };
+  batchImport: (contactId: string, module: CardModule, text: string, group?: string) => { added: number; duplicates: number };
   resetModule: (contactId: string, module: CardModule) => void;
   pickRandomCard: (contactId: string, module: CardModule, excludeId?: string) => Card | undefined;
   setCardGroup: (contactId: string, id: string, group: string) => void;
@@ -936,7 +936,7 @@ export const useAppStore = create<
           };
         }),
 
-      batchImport: (contactId, module, text) => {
+      batchImport: (contactId, module, text, group) => {
         const contact = get().contacts.find((c) => c.id === contactId);
         if (!contact) return { added: 0, duplicates: 0 };
         const existing = contact.cards?.[module] || [];
@@ -961,7 +961,7 @@ export const useAppStore = create<
             id: uid(module),
             name,
             content: name,
-            group: module === "chat" ? "日常" : undefined,
+            group: module === "chat" ? (group || "日常") : undefined,
           });
         }
 

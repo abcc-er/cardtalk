@@ -66,34 +66,10 @@ export default function NoteBubble({ message, side, showAvatar }: Props) {
 
           <div className="relative w-60 px-4 pt-5 pb-3">
             <div
-              className="font-serif text-base font-bold leading-snug"
+              className="text-[13px] leading-relaxed"
               style={{ color: "var(--text)" }}
             >
-              {card.name}
-            </div>
-            <div
-              className="mt-1.5 h-px w-full"
-              style={{
-                background:
-                  "repeating-linear-gradient(90deg, var(--card-border) 0, var(--card-border) 4px, transparent 4px, transparent 8px)",
-              }}
-            />
-            <div
-              className="mt-2 text-[13px] leading-relaxed"
-              style={{ color: "color-mix(in srgb, var(--text) 75%, transparent)" }}
-            >
               {card.content}
-            </div>
-            <div className="mt-3 flex items-center justify-end">
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-stamp"
-                style={{
-                  background: "color-mix(in srgb, var(--accent) 10%, transparent)",
-                  color: "var(--accent)",
-                }}
-              >
-                {card.stamp}
-              </span>
             </div>
           </div>
         </div>

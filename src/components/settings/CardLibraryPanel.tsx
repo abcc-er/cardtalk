@@ -35,9 +35,10 @@ export default function CardLibraryPanel() {
   const [editGroup, setEditGroup] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importText, setImportText] = useState("");
+  const [importGroup, setImportGroup] = useState("日常");
   const [showImport, setShowImport] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [newCard, setNewCard] = useState({ name: "", content: "", stamp: "", mood: "", group: "日常" });
+  const [newCard, setNewCard] = useState({ content: "", group: "日常" });
   const [importResult, setImportResult] = useState<{ added: number; duplicates: number } | null>(null);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -105,10 +106,7 @@ export default function CardLibraryPanel() {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      match = match && (
-        c.name.toLowerCase().includes(q) ||
-        (c.content || "").toLowerCase().includes(q)
-      );
+      match = match && (c.content || "").toLowerCase().includes(q);
     }
     return match;
   });
@@ -145,20 +143,20 @@ export default function CardLibraryPanel() {
 
   const doImport = () => {
     if (!activeCardLibContactId) return;
-    const result = batchImport(activeCardLibContactId, activeModule, importText);
+    const result = batchImport(activeCardLibContactId, activeModule, importText, isChat ? importGroup : undefined);
     setImportResult(result);
     if (result.added > 0) setImportText("");
     setTimeout(() => setImportResult(null), 3000);
   };
 
   const doAdd = () => {
-    if (!activeCardLibContactId || !newCard.name.trim()) return;
+    if (!activeCardLibContactId || !newCard.content.trim()) return;
     addCard(activeCardLibContactId, activeModule, {
-      name: newCard.name.trim(),
-      content: newCard.content.trim() || newCard.name.trim(),
+      name: newCard.content.trim(),
+      content: newCard.content.trim(),
       group: isChat ? (newCard.group || "日常") : undefined,
     });
-    setNewCard({ name: "", content: "", stamp: "", mood: "", group: "日常" });
+    setNewCard({ content: "", group: "日常" });
     setShowAdd(false);
   };
 
@@ -437,12 +435,12 @@ export default function CardLibraryPanel() {
           <div className="text-[11px] font-medium mb-2" style={{ color: "var(--text)" }}>
             新增字卡
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2">
             <input
-              placeholder="卡片名 *"
-              value={newCard.name}
-              onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
-              className="rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+              placeholder="字卡内容"
+              value={newCard.content}
+              onChange={(e) => setNewCard({ ...newCard, content: e.target.value })}
+              className="flex-1 rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
               style={{ borderColor: "var(--card-border)", background: "var(--bg)", color: "var(--text)" }}
             />
             {isChat && (
@@ -458,13 +456,6 @@ export default function CardLibraryPanel() {
               </select>
             )}
           </div>
-          <input
-            placeholder="正文内容"
-            value={newCard.content}
-            onChange={(e) => setNewCard({ ...newCard, content: e.target.value })}
-            className="mt-2 w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
-            style={{ borderColor: "var(--card-border)", background: "var(--bg)", color: "var(--text)" }}
-          />
           <button
             onClick={doAdd}
             className="mt-2 w-full rounded-lg py-1.5 text-xs font-medium text-white transition hover:opacity-90"
@@ -486,6 +477,21 @@ export default function CardLibraryPanel() {
             className="w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
             style={{ borderColor: "var(--card-border)", background: "var(--bg)", color: "var(--text)" }}
           />
+          {isChat && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[11px]" style={{ color: "var(--text-soft)" }}>导入到分组：</span>
+              <select
+                value={importGroup}
+                onChange={(e) => setImportGroup(e.target.value)}
+                className="rounded-lg border px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+                style={{ borderColor: "var(--card-border)", background: "var(--bg)", color: "var(--text)" }}
+              >
+                {cardGroups.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {importResult && (
             <div className="mt-2 text-[11px]" style={{ color: "var(--text-soft)" }}>
               {importResult.added > 0 ? `已导入 ${importResult.added} 张` : "没有新增"}
@@ -601,11 +607,12 @@ export default function CardLibraryPanel() {
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs" style={{ color: "var(--text-soft)" }}>
-                  卡片名
+                  字卡内容
                 </label>
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                <textarea
+                  value={editContent}
+                  onChange={(e) => { setEditContent(e.target.value); setEditName(e.target.value); }}
+                  rows={4}
                   className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
                   style={{
                     borderColor: "var(--card-border)",
@@ -635,22 +642,6 @@ export default function CardLibraryPanel() {
                   </select>
                 </div>
               )}
-              <div>
-                <label className="mb-1 block text-xs" style={{ color: "var(--text-soft)" }}>
-                  正文内容
-                </label>
-                <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
-                  style={{
-                    borderColor: "var(--card-border)",
-                    background: "var(--bg)",
-                    color: "var(--text)",
-                  }}
-                />
-              </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setEditingCard(null)}
@@ -661,15 +652,15 @@ export default function CardLibraryPanel() {
                 </button>
                 <button
                   onClick={() => {
-                    if (!activeCardLibContactId || !editingCard || !editName.trim()) return;
+                    if (!activeCardLibContactId || !editingCard || !editContent.trim()) return;
                     updateCard(activeCardLibContactId, activeModule, editingCard.id, {
-                      name: editName.trim(),
+                      name: editContent.trim(),
                       content: editContent.trim(),
                       ...(isChat ? { group: editGroup } : {}),
                     });
                     setEditingCard(null);
                   }}
-                  disabled={!editName.trim()}
+                  disabled={!editContent.trim()}
                   className="flex-1 rounded-xl py-2 text-sm font-medium transition disabled:opacity-40"
                   style={{
                     background: "var(--accent)",
@@ -743,17 +734,17 @@ export default function CardLibraryPanel() {
                         setShowSearch(false);
                         setSearchModalText("");
                         setEditingCard(c);
-                        setEditName(c.name);
+                        setEditName(c.content || "");
                         setEditContent(c.content || "");
                         setEditGroup(c.group || "日常");
                       }}
                     >
-                      <div className="font-medium text-sm" style={{ color: "var(--text)" }}>
-                        {c.name}
+                      <div className="text-sm" style={{ color: "var(--text)" }}>
+                        {c.content}
                       </div>
-                      {c.content && (
-                        <div className="mt-1 text-xs" style={{ color: "var(--text-soft)" }}>
-                          {c.content}
+                      {isChat && c.group && (
+                        <div className="mt-1 text-[10px]" style={{ color: "var(--text-soft)" }}>
+                          {c.group}
                         </div>
                       )}
                     </div>
