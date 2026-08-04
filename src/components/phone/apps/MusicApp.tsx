@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { Play, Pause, SkipBack, SkipForward, Plus, X, Music, Minimize2 } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Plus, X, Music, Minimize2, Upload } from "lucide-react";
 import { useAppStore } from "@/store/app";
 
 interface Props {
@@ -24,6 +24,7 @@ export default function MusicApp({ onBack }: Props) {
   const [newUrl, setNewUrl] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentSong = songs[musicCurrentIndex];
 
@@ -91,6 +92,19 @@ export default function MusicApp({ onBack }: Props) {
     setShowAddUrl(false);
   };
 
+  const handleImportFile = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("audio/")) continue;
+      const objectUrl = URL.createObjectURL(file);
+      // 从文件名提取标题（去掉扩展名）
+      const title = file.name.replace(/\.[^/.]+$/, "");
+      addSong(title, objectUrl);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setShowAddUrl(false);
+  };
+
   const handleRemoveSong = (id: string) => {
     removeSong(id);
     if (currentSong?.id === id) {
@@ -107,6 +121,14 @@ export default function MusicApp({ onBack }: Props) {
   return (
     <div className={`flex h-full flex-col ${isCuteMoe ? "cute-music-app" : ""}`}>
       <audio ref={audioRef} onEnded={handleEnded} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="hidden"
+        onChange={(e) => handleImportFile(e.target.files)}
+      />
       <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: isCuteMoe ? "rgba(212,184,184,0.3)" : "var(--card-border)" }}>
         <button onClick={onBack} className="text-sm" style={{ color: isCuteMoe ? "#8BA8B8" : "var(--text-soft)" }}>返回</button>
         <span className="text-sm font-medium" style={{ color: isCuteMoe ? "#5F7A8C" : "var(--text)" }}>音乐</span>
@@ -228,7 +250,7 @@ export default function MusicApp({ onBack }: Props) {
                     {song.title}
                   </div>
                   <div className="text-xs truncate opacity-60" style={{ color: "var(--text-soft)" }}>
-                    {song.url.substring(0, 30)}{song.url.length > 30 ? "..." : ""}
+                    {song.url.startsWith("blob:") ? "本地文件" : song.url.startsWith("data:") ? "本地文件" : song.url.substring(0, 30) + (song.url.length > 30 ? "..." : "")}
                   </div>
                 </div>
                 <button
@@ -289,6 +311,22 @@ export default function MusicApp({ onBack }: Props) {
                   }}
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1" style={{ background: "var(--card-border)" }} />
+                <span className="text-[10px]" style={{ color: "var(--text-soft)" }}>或</span>
+                <div className="h-px flex-1" style={{ background: "var(--card-border)" }} />
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-2.5 text-sm transition hover:bg-black/5"
+                style={{
+                  borderColor: "var(--card-border)",
+                  color: "var(--accent)",
+                }}
+              >
+                <Upload className="h-4 w-4" />
+                导入本地音乐文件
+              </button>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowAddUrl(false)}

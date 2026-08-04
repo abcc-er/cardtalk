@@ -26,7 +26,7 @@ export default function PhoneDrawer() {
       />
 
       <aside
-        className={`fixed right-0 top-0 z-50 h-full w-[380px] max-w-[90vw] transform transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]`}
+        className={`fixed right-0 top-0 z-50 h-full w-full sm:w-[380px] transform transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]`}
         style={{
           transform: open ? "translateX(0)" : "translateX(100%)",
           background: "var(--bg)",

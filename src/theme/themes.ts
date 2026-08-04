@@ -203,6 +203,24 @@ export const FLAVOR_THEMES: Theme[] = [
     phoneShell: "#5F7A8C",
     phoneScreen: "#FFF5F5",
   },
+  {
+    id: "wechat",
+    name: "微信",
+    group: "flavor",
+    bg: "#EDEDED",
+    bgDeep: "#D9D9D9",
+    text: "#1A1A1A",
+    textSoft: "#666666",
+    accent: "#07C160",
+    accent2: "#95EC69",
+    card: "#FFFFFF",
+    cardBorder: "rgba(0,0,0,0.06)",
+    myBubble: "#95EC69",
+    myBubbleText: "#000000",
+    herCard: "#FFFFFF",
+    phoneShell: "#2E2E2E",
+    phoneScreen: "#EDEDED",
+  },
 ];
 
 // ============ 简约单色主题（低饱和）============

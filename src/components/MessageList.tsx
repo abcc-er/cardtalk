@@ -277,7 +277,7 @@ export default function MessageList() {
 
   if (!conv) {
     return (
-      <div className="chat-bg fancy-scroll flex-1 overflow-y-auto px-4 py-6 md:px-8">
+      <div className="chat-bg fancy-scroll flex-1 overflow-y-auto px-2 py-3 sm:px-4 md:px-8">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 items-center justify-center h-full">
           <p style={{ color: "var(--text-soft)" }}>选择一个会话开始聊天</p>
         </div>
@@ -298,7 +298,7 @@ export default function MessageList() {
   return (
     <div
       ref={scrollRef}
-      className="chat-bg fancy-scroll flex-1 overflow-y-auto px-4 py-6 md:px-8"
+      className="chat-bg fancy-scroll flex-1 overflow-y-auto px-2 py-3 sm:px-4 md:px-8"
       onClick={petHidingMode ? () => {} : undefined}
     >
       {petHidingMode && (
@@ -420,7 +420,13 @@ export default function MessageList() {
                   />
                 </div>
               )}
-              <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`} style={{ maxWidth: "78%" }}>
+              <div
+                className={`flex flex-col ${isLeft ? "items-start" : "items-end"}`}
+                style={{
+                  maxWidth: m.type === "text" || m.type === "image" ? "78%" : "auto",
+                  alignSelf: "flex-start",
+                }}
+              >
                 {isLeft && m.sender !== "me" && (
                   <span
                     className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1 relative z-10"
@@ -434,6 +440,8 @@ export default function MessageList() {
                     {getContactName(m.sender)}
                   </span>
                 )}
+                {/* 我方消息无昵称，用占位撑出与对方一致的顶部偏移 */}
+                {!isLeft && <div style={{ height: "18px" }} aria-hidden="true" />}
                 <div className="relative">
                   {beauty.petEnabled && conv?.type !== "group" && conv?.petHidden?.messageId === m.id && (
                     <button
@@ -976,6 +984,8 @@ function MessageBubble({
   const setMusicCurrentIndex = useAppStore((s) => s.setMusicCurrentIndex);
   const setMusicPlaying = useAppStore((s) => s.setMusicPlaying);
   const setMusicFullScreen = useAppStore((s) => s.setMusicFullScreen);
+  const claimRedpacket = useAppStore((s) => s.claimRedpacket);
+  const activeConversationId = useAppStore((s) => s.activeConversationId);
   const time = new Date(message.timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -1032,7 +1042,7 @@ function MessageBubble({
             src={message.sticker}
             alt="sticker"
             className="animate-bubbleIn rounded-xl object-contain"
-            style={{ maxWidth: "160px", maxHeight: "160px", display: "block" }}
+            style={{ width: "80px", height: "80px", display: "block" }}
           />
         ) : (
           <div
@@ -1089,6 +1099,96 @@ function MessageBubble({
     );
   }
 
+  if (message.type === "survey" && message.survey) {
+    const s = message.survey;
+    const isCompleted = !!s.answers;
+    return (
+      <div className="animate-bubbleIn rounded-2xl border p-3" style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--card-border) 50%, transparent)", minWidth: "220px", maxWidth: "300px" }}>
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-sm font-medium" style={{ color: "var(--accent)" }}>📋 {s.title}</span>
+          {isCompleted && <span className="text-[10px] rounded-full px-1.5 py-0.5" style={{ background: "color-mix(in srgb, var(--accent) 20%, transparent)", color: "var(--accent)" }}>已回答</span>}
+        </div>
+        <div className="space-y-1.5">
+          {s.questions.map((q, i) => (
+            <div key={q.id} className="text-[13px]">
+              <div style={{ color: "var(--text)" }}>{i + 1}. {q.text}</div>
+              {isCompleted && s.answers?.find(a => a.questionId === q.id) && (
+                <div className="mt-0.5 pl-3 text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 60%, transparent)" }}>
+                  → {s.answers.find(a => a.questionId === q.id)?.answer}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {!isCompleted && (
+          <div className="mt-2 text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+            等待对方回答中...
+          </div>
+        )}
+        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
+      </div>
+    );
+  }
+
+  if (message.type === "shop" && message.shop) {
+    const shop = message.shop;
+    return (
+      <div className="animate-bubbleIn rounded-2xl border p-3" style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--card-border) 50%, transparent)", minWidth: "180px" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{shop.emoji}</span>
+          <div className="flex-1">
+            <div className="text-sm font-medium" style={{ color: "var(--text)" }}>{shop.productName}</div>
+            <div className="text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 55%, transparent)" }}>¥{shop.price}</div>
+          </div>
+        </div>
+        <div className="mt-1.5 text-[11px]" style={{ color: shop.action === "recommend" ? "var(--accent)" : shop.action === "bought" ? "#4CAF50" : "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+          {shop.action === "recommend" ? "💡 推荐给你，要买吗？" : shop.action === "bought" ? "✅ 已帮你购买！" : "🛒 求购买"}
+        </div>
+        {shop.leaveMessage && (
+          <div
+            className="mt-1.5 rounded-lg border px-2 py-1 text-[11px]"
+            style={{
+              background: "color-mix(in srgb, var(--accent) 6%, transparent)",
+              borderColor: "color-mix(in srgb, var(--accent) 18%, transparent)",
+              color: "var(--text)",
+            }}
+          >
+            💬 留言：{shop.leaveMessage}
+          </div>
+        )}
+        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
+      </div>
+    );
+  }
+
+  if (message.type === "redpacket" && message.redpacket) {
+    const rp = message.redpacket;
+    const isMine = message.sender === "me";
+    const canClaim = !rp.claimed && !isMine;
+    return (
+      <div
+        className={`animate-bubbleIn rounded-2xl border p-3 ${canClaim ? "cursor-pointer active:scale-95" : ""}`}
+        style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--accent) 30%, transparent)", minWidth: "160px", transition: "transform 0.15s" }}
+        onClick={canClaim ? () => claimRedpacket(activeConversationId, message.id) : undefined}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🧧</span>
+          <div className="flex-1">
+            <div className="text-sm font-medium" style={{ color: "var(--text)" }}>红包</div>
+            {rp.message && <div className="text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 55%, transparent)" }}>{rp.message}</div>}
+          </div>
+        </div>
+        <div className="mt-1.5 text-sm font-bold" style={{ color: "#E91E63" }}>
+          ¥{rp.amount}
+          {rp.claimed && <span className="ml-2 text-[11px] font-normal" style={{ color: "#4CAF50" }}>已领取</span>}
+          {canClaim && <span className="ml-2 text-[11px] font-normal" style={{ color: "var(--accent)" }}>点击领取</span>}
+          {isMine && !rp.claimed && <span className="ml-2 text-[11px] font-normal" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>等待领取</span>}
+        </div>
+        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
+      </div>
+    );
+  }
+
   return (
     <>
       {message.quoteText && (
@@ -1106,7 +1206,7 @@ function MessageBubble({
           <div className="line-clamp-3 leading-snug opacity-90">{message.quoteText}</div>
         </div>
       )}
-      <div className="relative animate-bubbleIn" style={{ maxWidth: "100%", minHeight: "36px" }}>
+      <div className={`relative animate-bubbleIn ${isLeft ? "bubble-tail-left" : "bubble-tail-right"}`} style={{ maxWidth: "100%", minHeight: "36px" }}>
         <div
           style={{
             ...bubbleStyle,

@@ -1,5 +1,5 @@
 import { useState, useRef, type KeyboardEvent } from "react";
-import { Send, Smile, X, ImageIcon } from "lucide-react";
+import { Send, Smile, X, ImageIcon, Gift } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { compressImage } from "@/lib/utils";
 
@@ -9,10 +9,14 @@ export default function InputBar() {
   const send = useAppStore((s) => s.send);
   const sendStickerInConv = useAppStore((s) => s.sendStickerInConv);
   const sendImageInConv = useAppStore((s) => s.sendImageInConv);
+  const sendRedpacket = useAppStore((s) => s.sendRedpacket);
   const stickers = useAppStore((s) => s.stickers);
   const quotingMessageId = useAppStore((s) => s.quotingMessageId);
   const [text, setText] = useState("");
   const [showStickers, setShowStickers] = useState(false);
+  const [showRedpacket, setShowRedpacket] = useState(false);
+  const [rpAmount, setRpAmount] = useState("");
+  const [rpMessage, setRpMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
@@ -51,13 +55,22 @@ export default function InputBar() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const onSendRedpacket = () => {
+    const amount = parseFloat(rpAmount);
+    if (isNaN(amount) || amount <= 0 || !activeConv) return;
+    sendRedpacket(activeConv.id, amount, rpMessage.trim() || undefined);
+    setRpAmount("");
+    setRpMessage("");
+    setShowRedpacket(false);
+  };
+
   const placeholder = isGroup
     ? "说点什么吧"
     : "说点什么吧（Enter 发送）";
 
   return (
     <div
-      className="border-t px-4 py-3 backdrop-blur md:px-8 cute-input-bar"
+      className="border-t px-2 py-2 sm:px-4 backdrop-blur md:px-8 cute-input-bar"
       style={{
         borderColor: "var(--card-border)",
         background: "color-mix(in srgb, var(--bg-deep) 70%, transparent)",
@@ -152,10 +165,67 @@ export default function InputBar() {
         </div>
       )}
 
-      <div className="mx-auto flex max-w-3xl items-end gap-3 px-1">
+      {showRedpacket && (
+        <div
+          className="mx-auto mb-2 max-w-3xl animate-slideUp rounded-2xl border p-3"
+          style={{
+            borderColor: "var(--card-border)",
+            background: "var(--card)",
+          }}
+        >
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-[11px]" style={{ color: "var(--text-soft)" }}>
+              🧧 发红包
+            </span>
+            <button
+              onClick={() => setShowRedpacket(false)}
+              className="flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-black/10"
+              style={{ color: "var(--text-soft)" }}
+              aria-label="关闭"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <input
+              value={rpAmount}
+              onChange={(e) => setRpAmount(e.target.value)}
+              type="number"
+              placeholder="金额（元）"
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              style={{
+                borderColor: "var(--card-border)",
+                background: "var(--card)",
+                color: "var(--text)",
+              }}
+            />
+            <input
+              value={rpMessage}
+              onChange={(e) => setRpMessage(e.target.value)}
+              placeholder="留言（可选）"
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              style={{
+                borderColor: "var(--card-border)",
+                background: "var(--card)",
+                color: "var(--text)",
+              }}
+            />
+            <button
+              onClick={onSendRedpacket}
+              disabled={!rpAmount.trim() || parseFloat(rpAmount) <= 0}
+              className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40"
+              style={{ background: "#E91E63", color: "white" }}
+            >
+              发送红包
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto flex max-w-3xl items-end gap-2 px-1">
         <button
           onClick={() => setShowStickers(!showStickers)}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5 cute-sticker-btn"
+          className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5 cute-sticker-btn"
           style={{
             borderColor: showStickers ? "var(--accent)" : "var(--card-border)",
             background: showStickers ? "var(--accent)" : "var(--card)",
@@ -169,7 +239,7 @@ export default function InputBar() {
 
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5 cute-image-btn"
+          className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5 cute-image-btn"
           style={{
             borderColor: "var(--card-border)",
             background: "var(--card)",
@@ -179,6 +249,20 @@ export default function InputBar() {
           title="发送图片"
         >
           <ImageIcon className="h-5 w-5" />
+        </button>
+
+        <button
+          onClick={() => setShowRedpacket(!showRedpacket)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition hover:bg-black/5"
+          style={{
+            borderColor: showRedpacket ? "#E91E63" : "var(--card-border)",
+            background: showRedpacket ? "#E91E63" : "var(--card)",
+            color: showRedpacket ? "white" : "var(--text-soft)",
+          }}
+          aria-label="发红包"
+          title="发红包"
+        >
+          <Gift className="h-4 w-4" />
         </button>
 
         <div

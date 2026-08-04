@@ -194,45 +194,55 @@ export default function BeautyPanel() {
             </button>
           ))}
         </div>
-        {/* 自定义壁纸上传 */}
-        {beauty.wallpaper === "custom" && (
+        {/* 自定义壁纸上传（始终显示） */}
+        <div
+          className="mt-3 flex items-center gap-3 rounded-lg border p-2.5"
+          style={{ borderColor: "var(--card-border)", background: "var(--card)" }}
+        >
           <div
-            className="mt-3 flex items-center gap-3 rounded-lg border p-2.5"
-            style={{ borderColor: "var(--card-border)", background: "var(--card)" }}
+            className="h-12 w-16 shrink-0 overflow-hidden rounded-md border"
+            style={{
+              borderColor: "var(--card-border)",
+              background: "var(--bg)",
+            }}
           >
-            <div
-              className="h-12 w-16 shrink-0 overflow-hidden rounded-md border"
-              style={{
-                borderColor: "var(--card-border)",
-                background: "var(--bg)",
-              }}
-            >
-              {beauty.wallpaperImage ? (
-                <img
-                  src={beauty.wallpaperImage}
-                  alt="壁纸预览"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-[9px]" style={{ color: "var(--text-soft)" }}>
-                  未导入
-                </div>
-              )}
-            </div>
-            <div className="flex-1">
-              <div className="mb-1 text-[11px]" style={{ color: "var(--text-soft)" }}>
-                导入图片作为聊天壁纸，超出尺寸自动裁剪
+            {beauty.wallpaperImage ? (
+              <img
+                src={beauty.wallpaperImage}
+                alt="壁纸预览"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[9px]" style={{ color: "var(--text-soft)" }}>
+                未导入
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => wallpaperRef.current?.click()}
-                  className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] transition hover:bg-black/5"
-                  style={{ borderColor: "var(--card-border)", color: "var(--accent)" }}
-                >
-                  <Upload className="h-3 w-3" />
-                  导入图片
-                </button>
-                {beauty.wallpaperImage && (
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="mb-1 text-[11px]" style={{ color: "var(--text-soft)" }}>
+              导入图片作为聊天壁纸，选择「自定义」后生效，超出尺寸自动裁剪
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => wallpaperRef.current?.click()}
+                className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] transition hover:bg-black/5"
+                style={{ borderColor: "var(--card-border)", color: "var(--accent)" }}
+              >
+                <Upload className="h-3 w-3" />
+                导入图片
+              </button>
+              {beauty.wallpaperImage && (
+                <>
+                  <button
+                    onClick={() => setBeauty({ wallpaper: "custom" })}
+                    className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] transition hover:bg-black/5"
+                    style={{
+                      borderColor: beauty.wallpaper === "custom" ? "var(--accent)" : "var(--card-border)",
+                      color: beauty.wallpaper === "custom" ? "var(--accent)" : "var(--text-soft)",
+                    }}
+                  >
+                    应用
+                  </button>
                   <button
                     onClick={() => setBeauty({ wallpaperImage: "" })}
                     className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] transition hover:bg-black/5"
@@ -241,28 +251,28 @@ export default function BeautyPanel() {
                     <X className="h-3 w-3" />
                     移除
                   </button>
-                )}
-              </div>
-              <input
-                ref={wallpaperRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f && f.type.startsWith("image/")) {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setBeauty({ wallpaperImage: reader.result as string });
-                    };
-                    reader.readAsDataURL(f);
-                  }
-                  e.target.value = "";
-                }}
-              />
+                </>
+              )}
             </div>
+            <input
+              ref={wallpaperRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && f.type.startsWith("image/")) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setBeauty({ wallpaperImage: reader.result as string, wallpaper: "custom" });
+                  };
+                  reader.readAsDataURL(f);
+                }
+                e.target.value = "";
+              }}
+            />
           </div>
-        )}
+        </div>
       </Section>
 
       {/* 名字 */}

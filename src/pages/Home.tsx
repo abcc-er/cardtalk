@@ -254,7 +254,7 @@ export default function Home() {
           </div>
           {isPrivate && isHer ? (
             <div
-              className="border-t px-4 py-4 backdrop-blur md:px-8"
+              className="border-t px-2 py-2 sm:px-4 backdrop-blur md:px-8"
               style={{
                 borderColor: "var(--card-border)",
                 background: "color-mix(in srgb, var(--bg-deep) 60%, transparent)",

@@ -53,7 +53,7 @@ export default function ChatHeader() {
           background: isCuteMoe ? "transparent" : "color-mix(in srgb, var(--bg) 80%, transparent)",
         }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {isRenaming ? (
             <input
               autoFocus
@@ -100,12 +100,12 @@ export default function ChatHeader() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {!isGroup && contact && (
             <>
               <button
                 onClick={() => contact && startCall(contact.id)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
                 style={{
                   borderColor: "var(--card-border)",
                   background: "var(--card)",
@@ -117,7 +117,7 @@ export default function ChatHeader() {
               </button>
               <button
                 onClick={() => setShowMemoModal(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
                 style={{
                   borderColor: "var(--card-border)",
                   background: "var(--card)",
@@ -132,7 +132,7 @@ export default function ChatHeader() {
 
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+            className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
             style={{
               borderColor: "var(--card-border)",
               background: "var(--card)",
@@ -152,7 +152,7 @@ export default function ChatHeader() {
                   }
                 }}
                 disabled={songs.length === 0}
-                className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105 disabled:opacity-40"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105 disabled:opacity-40"
                 style={{
                   borderColor: "var(--card-border)",
                   background: "var(--card)",
@@ -165,7 +165,7 @@ export default function ChatHeader() {
 
               <button
                 onClick={() => setShowRPSModal(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
                 style={{
                   borderColor: "var(--card-border)",
                   background: "var(--card)",
@@ -178,7 +178,7 @@ export default function ChatHeader() {
 
               <button
                 onClick={() => setShowPollModal(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
                 style={{
                   borderColor: "var(--card-border)",
                   background: "var(--card)",
@@ -192,7 +192,7 @@ export default function ChatHeader() {
           ) : (
             <button
               onClick={() => setPhoneOpen(!phoneOpen)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border transition hover:scale-105"
+              className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border transition hover:scale-105"
               style={{
                 borderColor: phoneOpen ? "var(--accent)" : "var(--card-border)",
                 background: phoneOpen ? "var(--accent)" : "var(--card)",

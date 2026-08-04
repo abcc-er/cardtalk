@@ -15,6 +15,10 @@ import type {
   Memo,
   DriftBottle,
   TomatoThrow,
+  Survey,
+  SurveyQuestion,
+  Product,
+  ShopData,
 } from "@/types";
 import type { BeautySettings, ChatSettings } from "@/types/settings";
 import {
@@ -152,6 +156,29 @@ function getBottleData(data: Record<string, BottleData>, contactId: string): Bot
     data[contactId] = createDefaultBottleData();
   }
   return data[contactId];
+}
+
+interface SurveyStore {
+  surveys: Survey[];
+  submitSurvey: (title: string, questions: SurveyQuestion[], author: string, scope?: "personal" | "public") => void;
+  approveSurvey: (id: string) => boolean;
+  rejectSurvey: (id: string) => void;
+  deleteSurvey: (id: string) => void;
+  sendSurveyToChat: (conversationId: string, surveyId: string) => void;
+  sendSurveyDataToChat: (conversationId: string, survey: { id: string; title: string; questions: SurveyQuestion[] }) => void;
+}
+
+interface ShopStore {
+  shopData: Record<string, ShopData>;
+  getShopData: (contactId: string) => ShopData;
+  setMyBalance: (contactId: string, amount: number) => void;
+  setHerBalance: (contactId: string, amount: number) => void;
+  addProduct: (contactId: string, name: string, price: number, emoji: string) => void;
+  deleteProduct: (contactId: string, productId: string) => void;
+  buyProduct: (conversationId: string, productId: string) => void;
+  buyProductByMe: (conversationId: string, productId: string, leaveMessage?: string) => void;
+  sendRedpacket: (conversationId: string, amount: number, message?: string) => void;
+  claimRedpacket: (conversationId: string, messageId: string) => void;
 }
 
 interface GlobalState {
@@ -419,7 +446,7 @@ function bumpHerStatus(prev: HerStatus, moodFromCard?: string): HerStatus {
 }
 
 export const useAppStore = create<
-  CardStore & StickerStore & MusicStore & ContactStore & ConversationStore & GlobalState & SettingsState
+  CardStore & StickerStore & MusicStore & ContactStore & ConversationStore & GlobalState & SettingsState & SurveyStore & ShopStore
 >()(
   persist(
     (set, get) => ({
@@ -1246,17 +1273,29 @@ export const useAppStore = create<
         })),
 
       deleteContact: (id) =>
-        set((s) => ({
-          contacts: s.contacts.filter((c) => c.id !== id),
-          conversations: s.conversations
+        set((s) => {
+          const remainingContacts = s.contacts.filter((c) => c.id !== id);
+          const fallbackId = remainingContacts[0]?.id || null;
+          const remainingConvs = s.conversations
             .filter((conv) => !(conv.type === "private" && conv.memberIds[0] === id))
             .map((conv) =>
               conv.type === "group"
                 ? { ...conv, memberIds: conv.memberIds.filter((mid) => mid !== id) }
                 : conv
-            ),
-          activeContactId: s.activeContactId === id ? (s.contacts.find((c) => c.id !== id)?.id || null) : s.activeContactId,
-        })),
+            );
+          const deletedConvId = s.conversations.find(
+            (conv) => conv.type === "private" && conv.memberIds[0] === id
+          )?.id;
+          return {
+            contacts: remainingContacts,
+            conversations: remainingConvs,
+            activeContactId: s.activeContactId === id ? fallbackId : s.activeContactId,
+            activeCardLibContactId: s.activeCardLibContactId === id ? fallbackId : s.activeCardLibContactId,
+            activeConversationId: deletedConvId && s.activeConversationId === deletedConvId
+              ? (remainingConvs[0]?.id || null)
+              : s.activeConversationId,
+          };
+        }),
 
       getContact: (id) => get().contacts.find((c) => c.id === id),
 
@@ -2490,6 +2529,358 @@ export const useAppStore = create<
       setBeauty: (b) => set((s) => ({ beauty: { ...s.beauty, ...b } })),
       setChat: (c) => set((s) => ({ chat: { ...s.chat, ...c } })),
       resetBeauty: () => set({ beauty: DEFAULT_BEAUTY }),
+
+      // =========== 问卷 ===========
+      surveys: [],
+      submitSurvey: (title, questions, author, scope = "personal") =>
+        set((s) => ({
+          surveys: [...s.surveys, {
+            id: uid("survey"),
+            title,
+            questions,
+            author: author || "匿名用户",
+            scope,
+            status: scope === "personal" ? "approved" : "pending",
+            createdAt: Date.now(),
+            approvedAt: scope === "personal" ? Date.now() : undefined,
+          }],
+        })),
+      approveSurvey: (id) => {
+        const survey = get().surveys.find(s => s.id === id);
+        if (!survey) return false;
+        set((s) => ({
+          surveys: s.surveys.map(survey =>
+            survey.id === id ? { ...survey, status: "approved", approvedAt: Date.now() } : survey
+          ),
+        }));
+        return true;
+      },
+      rejectSurvey: (id) =>
+        set((s) => ({
+          surveys: s.surveys.map(survey =>
+            survey.id === id ? { ...survey, status: "rejected" } : survey
+          ),
+        })),
+      deleteSurvey: (id) =>
+        set((s) => ({
+          surveys: s.surveys.filter(survey => survey.id !== id),
+        })),
+      sendSurveyToChat: (conversationId, surveyId) => {
+        const survey = get().surveys.find(s => s.id === surveyId);
+        if (!survey || survey.status !== "approved") return;
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv) return;
+        const myMsg: Message = {
+          id: uid("survey"),
+          sender: "me",
+          type: "survey",
+          timestamp: Date.now(),
+          survey: {
+            surveyId: survey.id,
+            title: survey.title,
+            questions: survey.questions,
+          },
+        };
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
+          ),
+        }));
+        // 5-15秒后对方自动回答
+        const replyDelay = randRange(5 * 1000, 15 * 1000);
+        window.setTimeout(() => {
+          const answers = survey.questions.map(q => {
+            if (q.options && q.options.length > 0) {
+              return { questionId: q.id, answer: q.options[Math.floor(Math.random() * q.options.length)] };
+            }
+            // 简答题随机生成回答
+            const genericAnswers = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
+            return { questionId: q.id, answer: genericAnswers[Math.floor(Math.random() * genericAnswers.length)] };
+          });
+          const herMsg: Message = {
+            id: uid("surveyReply"),
+            sender: conv.type === "private" ? conv.memberIds[0] : "her",
+            type: "survey",
+            timestamp: Date.now(),
+            survey: {
+              surveyId: survey.id,
+              title: survey.title,
+              questions: survey.questions,
+              answers,
+              completedAt: Date.now(),
+            },
+          };
+          set((s) => ({
+            conversations: s.conversations.map(c =>
+              c.id === conversationId ? { ...c, messages: [...c.messages, herMsg] } : c
+            ),
+          }));
+        }, replyDelay);
+      },
+
+      sendSurveyDataToChat: (conversationId, survey) => {
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv) return;
+        const myMsg: Message = {
+          id: uid("survey"),
+          sender: "me",
+          type: "survey",
+          timestamp: Date.now(),
+          survey: {
+            surveyId: survey.id,
+            title: survey.title,
+            questions: survey.questions,
+          },
+        };
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
+          ),
+        }));
+        const replyDelay = randRange(5 * 1000, 15 * 1000);
+        window.setTimeout(() => {
+          const answers = survey.questions.map(q => {
+            if (q.options && q.options.length > 0) {
+              return { questionId: q.id, answer: q.options[Math.floor(Math.random() * q.options.length)] };
+            }
+            const genericAnswers = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
+            return { questionId: q.id, answer: genericAnswers[Math.floor(Math.random() * genericAnswers.length)] };
+          });
+          const herMsg: Message = {
+            id: uid("surveyReply"),
+            sender: conv.type === "private" ? conv.memberIds[0] : "her",
+            type: "survey",
+            timestamp: Date.now(),
+            survey: {
+              surveyId: survey.id,
+              title: survey.title,
+              questions: survey.questions,
+              answers,
+              completedAt: Date.now(),
+            },
+          };
+          set((s) => ({
+            conversations: s.conversations.map(c =>
+              c.id === conversationId ? { ...c, messages: [...c.messages, herMsg] } : c
+            ),
+          }));
+        }, replyDelay);
+      },
+
+      // =========== 商店 ===========
+      shopData: {},
+      getShopData: (contactId) => {
+        const data = get().shopData;
+        if (!data[contactId]) {
+          const defaultData: ShopData = {
+            myBalance: 1000,
+            herBalance: 1000,
+            products: [
+              { id: uid("p"), name: "奶茶", price: 15, emoji: "🧋" },
+              { id: uid("p"), name: "蛋糕", price: 38, emoji: "🍰" },
+              { id: uid("p"), name: "鲜花", price: 99, emoji: "💐" },
+            ],
+            purchases: [],
+          };
+          set((s) => ({ shopData: { ...s.shopData, [contactId]: defaultData } }));
+          return defaultData;
+        }
+        return data[contactId];
+      },
+      setMyBalance: (contactId, amount) =>
+        set((s) => {
+          const data = s.shopData[contactId] || { myBalance: 1000, herBalance: 1000, products: [], purchases: [] };
+          return { shopData: { ...s.shopData, [contactId]: { ...data, myBalance: amount } } };
+        }),
+      setHerBalance: (contactId, amount) =>
+        set((s) => {
+          const data = s.shopData[contactId] || { myBalance: 1000, herBalance: 1000, products: [], purchases: [] };
+          return { shopData: { ...s.shopData, [contactId]: { ...data, herBalance: amount } } };
+        }),
+      addProduct: (contactId, name, price, emoji) =>
+        set((s) => {
+          const data = s.shopData[contactId] || { myBalance: 1000, herBalance: 1000, products: [], purchases: [] };
+          return { shopData: { ...s.shopData, [contactId]: { ...data, products: [...data.products, { id: uid("p"), name, price, emoji }] } } };
+        }),
+      deleteProduct: (contactId, productId) =>
+        set((s) => {
+          const data = s.shopData[contactId];
+          if (!data) return {};
+          return { shopData: { ...s.shopData, [contactId]: { ...data, products: data.products.filter(p => p.id !== productId) } } };
+        }),
+      buyProduct: (conversationId, productId) => {
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv || conv.type !== "private") return;
+        const contactId = conv.memberIds[0];
+        const data = get().shopData[contactId];
+        if (!data) return;
+        const product = data.products.find(p => p.id === productId);
+        if (!product) return;
+        // 对方购买，从对方余额扣除
+        if (data.herBalance < product.price) return;
+        set((s) => ({
+          shopData: {
+            ...s.shopData,
+            [contactId]: {
+              ...data,
+              herBalance: data.herBalance - product.price,
+              purchases: [...data.purchases, { id: uid("purchase"), productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, buyer: "her", timestamp: Date.now() }],
+            },
+          },
+        }));
+        const herMsg: Message = {
+          id: uid("shopBuy"),
+          sender: contactId,
+          type: "shop",
+          timestamp: Date.now(),
+          shop: { productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, action: "bought" },
+        };
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId ? { ...c, messages: [...c.messages, herMsg] } : c
+          ),
+        }));
+      },
+      buyProductByMe: (conversationId, productId, leaveMessage) => {
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv || conv.type !== "private") return;
+        const contactId = conv.memberIds[0];
+        const data = get().shopData[contactId];
+        if (!data) return;
+        const product = data.products.find(p => p.id === productId);
+        if (!product) return;
+        if (data.myBalance < product.price) return;
+        set((s) => ({
+          shopData: {
+            ...s.shopData,
+            [contactId]: {
+              ...data,
+              myBalance: data.myBalance - product.price,
+              purchases: [...data.purchases, { id: uid("purchase"), productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, buyer: "me", timestamp: Date.now() }],
+            },
+          },
+        }));
+        const myMsg: Message = {
+          id: uid("shopBuy"),
+          sender: "me",
+          type: "shop",
+          timestamp: Date.now(),
+          shop: { productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, action: "bought", leaveMessage: leaveMessage || undefined },
+        };
+        // 对方收到礼物后回消息
+        const replies = [
+          `谢谢！${product.name}收到了，超开心~`,
+          `哇，好喜欢${product.name}！你真好❤️`,
+          `${product.name}我收下啦，谢谢你～`,
+          `收到${product.name}啦，么么哒`,
+        ];
+        const replyText = leaveMessage
+          ? `收到${product.name}了~「${leaveMessage}」我看到啦，谢谢你！`
+          : replies[Math.floor(Math.random() * replies.length)];
+        const replyMsg: Message = {
+          id: uid("shopReply"),
+          sender: contactId,
+          type: "text",
+          text: replyText,
+          timestamp: Date.now() + 800,
+        };
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg, replyMsg] } : c
+          ),
+        }));
+      },
+      sendRedpacket: (conversationId, amount, message) => {
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv || conv.type !== "private") return;
+        const contactId = conv.memberIds[0];
+        const data = get().shopData[contactId];
+        if (data && data.myBalance < amount) return;
+        // 从我的余额扣除
+        if (data) {
+          set((s) => ({
+            shopData: {
+              ...s.shopData,
+              [contactId]: { ...data, myBalance: data.myBalance - amount },
+            },
+          }));
+        }
+        const myMsg: Message = {
+          id: uid("redpacket"),
+          sender: "me",
+          type: "redpacket",
+          timestamp: Date.now(),
+          redpacket: {
+            amount,
+            message: message || "小小红包，收下吧～",
+            claimed: false,
+          },
+        };
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
+          ),
+        }));
+        // 3-8秒后对方自动领取
+        const claimDelay = randRange(3000, 8000);
+        window.setTimeout(() => {
+          set((s) => ({
+            conversations: s.conversations.map(c =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    messages: c.messages.map(m =>
+                      m.id === myMsg.id && m.redpacket && !m.redpacket.claimed
+                        ? { ...m, redpacket: { ...m.redpacket, claimed: true, claimedAt: Date.now() } }
+                        : m
+                    ),
+                  }
+                : c
+            ),
+          }));
+          // 领取后金额加到对方余额
+          const curData = get().shopData[contactId];
+          if (curData) {
+            set((s) => ({
+              shopData: {
+                ...s.shopData,
+                [contactId]: { ...curData, herBalance: curData.herBalance + amount },
+              },
+            }));
+          }
+        }, claimDelay);
+      },
+      claimRedpacket: (conversationId, messageId) => {
+        set((s) => ({
+          conversations: s.conversations.map(c =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  messages: c.messages.map(m =>
+                    m.id === messageId && m.redpacket && !m.redpacket.claimed
+                      ? { ...m, redpacket: { ...m.redpacket, claimed: true, claimedAt: Date.now() } }
+                      : m
+                  ),
+                }
+              : c
+          ),
+        }));
+        // 领取红包后，金额加到我的余额
+        const conv = get().conversations.find(c => c.id === conversationId);
+        if (!conv || conv.type !== "private") return;
+        const contactId = conv.memberIds[0];
+        const msg = conv.messages.find(m => m.id === messageId);
+        if (!msg?.redpacket) return;
+        const data = get().shopData[contactId];
+        if (data) {
+          set((s) => ({
+            shopData: {
+              ...s.shopData,
+              [contactId]: { ...data, myBalance: data.myBalance + msg.redpacket!.amount },
+            },
+          }));
+        }
+      },
     }),
     {
       name: "cardtalk-store",
@@ -2517,6 +2908,8 @@ export const useAppStore = create<
         musicCurrentIndex: state.musicCurrentIndex,
         tomatoStats: state.tomatoStats,
         bottleData: state.bottleData,
+        surveys: state.surveys,
+        shopData: state.shopData,
       }),
       onRehydrateStorage: () => (state: any) => {
         if (!state) return;
@@ -3194,6 +3587,83 @@ export const useAppStore = create<
           }, hours * 60 * 60 * 1000);
         };
         setupBatteryUpdate();
+
+        // 商店推荐定时器 - 每10分钟5%概率推荐商品
+        const setupShopRecommend = () => {
+          const interval = 10 * 60 * 1000; // 10分钟
+          const trigger = () => {
+            if (Math.random() < 0.05) {
+              const state = useAppStore.getState();
+              // 遍历所有私聊会话
+              for (const conv of state.conversations) {
+                if (conv.type !== "private") continue;
+                const contactId = conv.memberIds[0];
+                const data = state.shopData[contactId];
+                if (!data || data.products.length === 0) continue;
+                const product = data.products[Math.floor(Math.random() * data.products.length)];
+                const recommendMsg: Message = {
+                  id: uid("shopRec"),
+                  sender: contactId,
+                  type: "shop",
+                  timestamp: Date.now(),
+                  shop: { productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, action: "recommend" },
+                };
+                useAppStore.setState((s) => ({
+                  conversations: s.conversations.map(c =>
+                    c.id === conv.id ? { ...c, messages: [...c.messages, recommendMsg] } : c
+                  ),
+                }));
+              }
+            }
+            window.setTimeout(trigger, interval);
+          };
+          window.setTimeout(trigger, interval);
+        };
+
+        // 红包定时器 - 每8分钟4%概率发红包
+        const setupRedPacket = () => {
+          const interval = 8 * 60 * 1000; // 8分钟
+          const trigger = () => {
+            if (Math.random() < 0.04) {
+              const state = useAppStore.getState();
+              for (const conv of state.conversations) {
+                if (conv.type !== "private") continue;
+                const contactId = conv.memberIds[0];
+                const data = state.shopData[contactId];
+                const amount = Math.floor(Math.random() * 50) + 10; // 10-60元随机
+                if (data && data.herBalance >= amount) {
+                  // 扣除对方余额
+                  useAppStore.setState((s) => ({
+                    shopData: {
+                      ...s.shopData,
+                      [contactId]: { ...data, herBalance: data.herBalance - amount },
+                    },
+                  }));
+                }
+                const redpacketMsg: Message = {
+                  id: uid("redpacket"),
+                  sender: contactId,
+                  type: "redpacket",
+                  timestamp: Date.now(),
+                  redpacket: {
+                    amount,
+                    message: ["给你个小红包～", "辛苦啦，买点好吃的", "随机红包，收下吧", "今天开心，发个红包", "小小心意～"][Math.floor(Math.random() * 5)],
+                  },
+                };
+                useAppStore.setState((s) => ({
+                  conversations: s.conversations.map(c =>
+                    c.id === conv.id ? { ...c, messages: [...c.messages, redpacketMsg] } : c
+                  ),
+                }));
+              }
+            }
+            window.setTimeout(trigger, interval);
+          };
+          window.setTimeout(trigger, interval);
+        };
+
+        setupShopRecommend();
+        setupRedPacket();
       },
     },
   ),

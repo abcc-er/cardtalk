@@ -50,7 +50,8 @@ export default function CardLibraryPanel() {
   const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!activeCardLibContactId && contacts.length > 0) {
+    const exists = contacts.find((c) => c.id === activeCardLibContactId);
+    if ((!activeCardLibContactId || !exists) && contacts.length > 0) {
       setActiveCardLibContactId(contacts[0].id);
     }
   }, [activeCardLibContactId, contacts, setActiveCardLibContactId]);

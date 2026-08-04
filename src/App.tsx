@@ -116,6 +116,53 @@ export default function App() {
     });
   }, []);
 
+  // 对方主动写信：每30分钟给每段私聊4%概率随机发 5-9 条字卡（聊天模块）
+  useEffect(() => {
+    const checkAndSendAutoLetters = () => {
+      const state = useAppStore.getState();
+      state.conversations.forEach((conv) => {
+        if (conv.type !== "private") return;
+        if (Math.random() >= 0.04) return; // 4% 概率
+        const contactId = conv.memberIds[0];
+        const contact = state.contacts.find((c) => c.id === contactId);
+        if (!contact || !contact.cards?.chat || contact.cards.chat.length === 0) return;
+
+        const chatCards = contact.cards.chat;
+        const count = 5 + Math.floor(Math.random() * 5); // 5-9 条
+        const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
+        const picks = shuffled.slice(0, Math.min(count, chatCards.length));
+
+        const baseTs = Date.now();
+        const msgs = picks.map((card, i) => {
+          // 每条消息先尝试用 name，再用 content
+          const text =
+            card.name && card.content
+              ? `${card.name}\n${card.content}`
+              : (card.name || card.content || "");
+          return {
+            id: `auto-letter-${baseTs}-${i}`,
+            sender: contactId,
+            type: "text" as const,
+            text,
+            timestamp: baseTs + i * 200,
+            isAutoInitiated: true,
+          };
+        });
+
+        if (msgs.length > 0) {
+          useAppStore.setState((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === conv.id ? { ...c, messages: [...c.messages, ...msgs] } : c
+            ),
+          }));
+        }
+      });
+    };
+
+    const intervalId = window.setInterval(checkAndSendAutoLetters, 30 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   return (
     <>
       <ThemeApplier />

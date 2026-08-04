@@ -16,7 +16,7 @@ export default function PhoneShell({ children, time = "9:41" }: Props) {
         <div className="absolute -left-0.5 top-40 h-16 w-1 rounded-l bg-black/50" />
         <div className="absolute -right-0.5 top-32 h-20 w-1 rounded-r bg-black/50" />
 
-        <div className="phone-screen-bg relative h-[520px] overflow-hidden rounded-[2rem]">
+        <div className="phone-screen-bg relative h-[520px] max-h-[80vh] overflow-hidden rounded-[2rem]">
           {/* 刘海 */}
           <div
             className="absolute left-1/2 top-0 z-30 h-6 w-28 -translate-x-1/2 rounded-b-2xl"

@@ -33,7 +33,7 @@ export default function SettingsDrawer() {
       />
 
       <aside
-        className={`fixed right-0 top-0 z-50 h-full w-[440px] max-w-[95vw] transform transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`fixed right-0 top-0 z-50 h-full w-full sm:w-[440px] transform transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
         style={{ background: "var(--bg)" }}

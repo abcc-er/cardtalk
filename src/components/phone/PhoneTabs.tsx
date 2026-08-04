@@ -12,10 +12,12 @@ import WeatherApp from "./apps/WeatherApp";
 import TomatoApp from "./apps/TomatoApp";
 import PetApp from "./apps/PetApp";
 import FlyChessApp from "./apps/FlyChessApp";
+import SurveyApp from "./apps/SurveyApp";
+import ShopApp from "./apps/ShopApp";
 import HomeScreen from "./apps/HomeScreen";
 import { useAppStore } from "@/store/app";
 
-export type PhoneAppId = "home" | "chat" | "body" | "mood" | "work" | "travel" | "meals" | "phone" | "music" | "weather" | "tomato" | "driftbottle" | "pet" | "flychess";
+export type PhoneAppId = "home" | "chat" | "body" | "mood" | "work" | "travel" | "meals" | "phone" | "music" | "weather" | "tomato" | "driftbottle" | "pet" | "flychess" | "survey" | "shop";
 
 // 可爱简约图标（SVG）
 const ChatIcon = ({ color }: { color: string }) => (
@@ -195,6 +197,26 @@ const PlaneIcon = ({ color }: { color: string }) => (
   </svg>
 );
 
+const SurveyIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 32 32" className="h-7 w-7">
+    <rect x="7" y="5" width="18" height="22" rx="2" fill={color} opacity="0.15" />
+    <rect x="7" y="5" width="18" height="22" rx="2" fill="none" stroke={color} strokeWidth="1.5" />
+    <line x1="11" y1="11" x2="21" y2="11" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="11" y1="16" x2="21" y2="16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="11" y1="21" x2="17" y2="21" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="11" cy="11" r="1" fill={color} />
+    <circle cx="11" cy="16" r="1" fill={color} />
+  </svg>
+);
+
+const ShopIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 32 32" className="h-7 w-7">
+    <path d="M9 10h14l-1.5 14a2 2 0 01-2 2H12.5a2 2 0 01-2-2L9 10z" fill={color} opacity="0.15" />
+    <path d="M9 10h14l-1.5 14a2 2 0 01-2 2H12.5a2 2 0 01-2-2L9 10z" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M12 10V8a4 4 0 018 0v2" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 const APPS: { id: PhoneAppId; name: string; Icon: (p: { color: string }) => JSX.Element; color: string }[] = [
   { id: "chat", name: "聊天", Icon: ChatIcon, color: "#3A7CA5" },
   { id: "meals", name: "三餐", Icon: BowlIcon, color: "#FF8A65" },
@@ -208,6 +230,8 @@ const APPS: { id: PhoneAppId; name: string; Icon: (p: { color: string }) => JSX.
   { id: "tomato", name: "番茄计数器", Icon: TomatoIcon, color: "#FF6B6B" },
   { id: "pet", name: "○", Icon: PetIcon, color: "#FF9EB3" },
   { id: "flychess", name: "飞行棋", Icon: PlaneIcon, color: "#5C9EFF" },
+  { id: "survey", name: "问卷", Icon: SurveyIcon, color: "#9C6ADE" },
+  { id: "shop", name: "商店", Icon: ShopIcon, color: "#FF8C42" },
   { id: "driftbottle", name: "漂流瓶", Icon: StarIcon, color: "#0066B3" },
 ];
 
@@ -245,6 +269,8 @@ export default function PhoneTabs() {
         {app === "tomato" && <TomatoApp onBack={() => setApp("home")} />}
         {app === "pet" && <PetApp onBack={() => setApp("home")} />}
         {app === "flychess" && <FlyChessApp onBack={() => setApp("home")} />}
+        {app === "survey" && <SurveyApp onBack={() => setApp("home")} />}
+        {app === "shop" && <ShopApp onBack={() => setApp("home")} />}
       </div>
 
       {/* Home 指示条 */}

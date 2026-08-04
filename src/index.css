@@ -534,3 +534,80 @@ html[data-theme="cute-moe"] .cute-image-btn {
   50% { transform: rotate(90deg); }
 }
 .rotate-hint-icon { animation: rotate-hint 1.5s ease-in-out infinite; }
+
+/* ============ 微信主题气泡 ============ */
+html[data-theme="wechat"] .message-bubble {
+  box-shadow: none !important;
+  border-width: 0 !important;
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  line-height: 1.5 !important;
+}
+
+/* 对方气泡：白色，方角+左侧尾巴 */
+html[data-theme="wechat"] .message-received {
+  border-radius: 6px 6px 6px 2px !important;
+  color: #000000 !important;
+  border: 1px solid rgba(0,0,0,0.05) !important;
+}
+
+/* 我方气泡：绿色，方角+右侧尾巴 */
+html[data-theme="wechat"] .message-sent {
+  border-radius: 6px 6px 2px 6px !important;
+  color: #000000 !important;
+  border: 1px solid rgba(0,0,0,0.03) !important;
+}
+
+/* 对方气泡尾巴（左侧） */
+html[data-theme="wechat"] .bubble-tail-left::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 10px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--her-card);
+}
+
+/* 我方气泡尾巴（右侧） */
+html[data-theme="wechat"] .bubble-tail-right::before {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 10px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--my-bubble);
+}
+
+html[data-theme="wechat"] .bubble-tail-left,
+html[data-theme="wechat"] .bubble-tail-right {
+  position: relative;
+}
+
+/* 微信主题下头像圆形更自然 */
+html[data-theme="wechat"] .message-avatar,
+html[data-theme="wechat"] .chat-avatar {
+  border-radius: 6px !important;
+}
+
+/* 微信主题下输入框与顶栏 */
+html[data-theme="wechat"] .chat-input-bar,
+html[data-theme="wechat"] .floating-input-bar {
+  background: #F7F7F7 !important;
+  border-top-color: rgba(0,0,0,0.08) !important;
+}
+
+html[data-theme="wechat"] .app-header-bar {
+  background: #EDEDED !important;
+  color: #000000 !important;
+  border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+}

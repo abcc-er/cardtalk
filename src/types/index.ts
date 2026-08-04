@@ -6,7 +6,7 @@ export type ViewSide = "me" | "her";
 export interface Message {
   id: string;
   sender: Sender;
-  type: "text" | "card" | "note" | "sticker" | "system" | "rps" | "poll" | "music" | "image" | "flychess";
+  type: "text" | "card" | "note" | "sticker" | "system" | "rps" | "poll" | "music" | "image" | "flychess" | "survey" | "shop" | "redpacket";
   text?: string;
   card?: import("./card").Card;
   noteMood?: string;
@@ -45,6 +45,27 @@ export interface Message {
   quoteSender?: string;
   recalled?: boolean;
   isAutoInitiated?: boolean;
+  survey?: {
+    surveyId: string;
+    title: string;
+    questions: { id: string; text: string; options?: string[] }[];
+    answers?: { questionId: string; answer: string }[];
+    completedAt?: number;
+  };
+  shop?: {
+    productId: string;
+    productName: string;
+    price: number;
+    emoji?: string;
+    action: "recommend" | "buy" | "bought";
+    leaveMessage?: string; // 给对方买完后的留言
+  };
+  redpacket?: {
+    amount: number;
+    message?: string;
+    claimed?: boolean;
+    claimedAt?: number;
+  };
 }
 
 export interface MealRecord {
@@ -167,4 +188,37 @@ export interface Conversation {
     part: "ear" | "top" | "accessory";
     hiddenAt: number;
   } | null;
+}
+
+// =========== 问卷 ===========
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  options?: string[];
+}
+
+export interface Survey {
+  id: string;
+  title: string;
+  questions: SurveyQuestion[];
+  author: string;
+  status: "pending" | "approved" | "rejected";
+  scope: "personal" | "public";
+  createdAt: number;
+  approvedAt?: number;
+}
+
+// =========== 商店 ===========
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  emoji: string;
+}
+
+export interface ShopData {
+  myBalance: number;
+  herBalance: number;
+  products: Product[];
+  purchases: { id: string; productId: string; productName: string; price: number; emoji: string; buyer: "me" | "her"; timestamp: number }[];
 }
