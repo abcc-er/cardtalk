@@ -166,6 +166,7 @@ interface SurveyStore {
   deleteSurvey: (id: string) => void;
   sendSurveyToChat: (conversationId: string, surveyId: string) => void;
   sendSurveyDataToChat: (conversationId: string, survey: { id: string; title: string; questions: SurveyQuestion[] }) => void;
+  saveSurveyResponse: (surveyId: string, response: { respondent: string; answers: { questionId: string; answer: string }[]; completedAt: number }) => void;
 }
 
 interface ShopStore {
@@ -2586,16 +2587,29 @@ export const useAppStore = create<
             c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
           ),
         }));
-        // 5-15秒后对方自动回答
-        const replyDelay = randRange(5 * 1000, 15 * 1000);
+        // 20秒后对方自动回答
+        const replyDelay = 20 * 1000;
         window.setTimeout(() => {
+          // 获取联系人字卡库聊天模块
+          const chatCards = conv.type === "private"
+            ? (get().contacts.find(c => c.id === conv.memberIds[0])?.cards?.chat || [])
+            : [];
+          const pickShortAnswerFromCards = () => {
+            if (chatCards.length > 0 && Math.random() < 0.9) {
+              // 随机抽 1-3 句话合并
+              const count = 1 + Math.floor(Math.random() * 3);
+              const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
+              const picks = shuffled.slice(0, Math.min(count, chatCards.length));
+              return picks.map(p => p.content || p.name || "").filter(Boolean).join(" ");
+            }
+            const fallback = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
+            return fallback[Math.floor(Math.random() * fallback.length)];
+          };
           const answers = survey.questions.map(q => {
             if (q.options && q.options.length > 0) {
               return { questionId: q.id, answer: q.options[Math.floor(Math.random() * q.options.length)] };
             }
-            // 简答题随机生成回答
-            const genericAnswers = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
-            return { questionId: q.id, answer: genericAnswers[Math.floor(Math.random() * genericAnswers.length)] };
+            return { questionId: q.id, answer: pickShortAnswerFromCards() };
           });
           const herMsg: Message = {
             id: uid("surveyReply"),
@@ -2615,6 +2629,11 @@ export const useAppStore = create<
               c.id === conversationId ? { ...c, messages: [...c.messages, herMsg] } : c
             ),
           }));
+          // 保存回答到问卷的 responses
+          const respondentName = conv.type === "private"
+            ? (get().contacts.find(c => c.id === conv.memberIds[0])?.name || "对方")
+            : "对方";
+          get().saveSurveyResponse(survey.id, { respondent: respondentName, answers, completedAt: Date.now() });
         }, replyDelay);
       },
 
@@ -2637,14 +2656,29 @@ export const useAppStore = create<
             c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
           ),
         }));
-        const replyDelay = randRange(5 * 1000, 15 * 1000);
+        // 20秒后对方自动回答
+        const replyDelay = 20 * 1000;
         window.setTimeout(() => {
+          // 获取联系人字卡库聊天模块
+          const chatCards = conv.type === "private"
+            ? (get().contacts.find(c => c.id === conv.memberIds[0])?.cards?.chat || [])
+            : [];
+          const pickShortAnswerFromCards = () => {
+            if (chatCards.length > 0 && Math.random() < 0.9) {
+              // 随机抽 1-3 句话合并
+              const count = 1 + Math.floor(Math.random() * 3);
+              const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
+              const picks = shuffled.slice(0, Math.min(count, chatCards.length));
+              return picks.map(p => p.content || p.name || "").filter(Boolean).join(" ");
+            }
+            const fallback = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
+            return fallback[Math.floor(Math.random() * fallback.length)];
+          };
           const answers = survey.questions.map(q => {
             if (q.options && q.options.length > 0) {
               return { questionId: q.id, answer: q.options[Math.floor(Math.random() * q.options.length)] };
             }
-            const genericAnswers = ["还好吧", "挺好的", "一般般", "不太确定", "让我想想...", "当然啦", "不是吧", "嗯嗯"];
-            return { questionId: q.id, answer: genericAnswers[Math.floor(Math.random() * genericAnswers.length)] };
+            return { questionId: q.id, answer: pickShortAnswerFromCards() };
           });
           const herMsg: Message = {
             id: uid("surveyReply"),
@@ -2664,7 +2698,21 @@ export const useAppStore = create<
               c.id === conversationId ? { ...c, messages: [...c.messages, herMsg] } : c
             ),
           }));
+          // 保存回答到问卷的 responses
+          const respondentName = conv.type === "private"
+            ? (get().contacts.find(c => c.id === conv.memberIds[0])?.name || "对方")
+            : "对方";
+          get().saveSurveyResponse(survey.id, { respondent: respondentName, answers, completedAt: Date.now() });
         }, replyDelay);
+      },
+      saveSurveyResponse: (surveyId, response) => {
+        set((s) => ({
+          surveys: s.surveys.map(survey =>
+            survey.id === surveyId
+              ? { ...survey, responses: [...(survey.responses || []), response] }
+              : survey
+          ),
+        }));
       },
 
       // =========== 商店 ===========
@@ -2767,28 +2815,37 @@ export const useAppStore = create<
           timestamp: Date.now(),
           shop: { productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, action: "bought", leaveMessage: leaveMessage || undefined },
         };
-        // 对方收到礼物后回消息
-        const replies = [
-          `谢谢！${product.name}收到了，超开心~`,
-          `哇，好喜欢${product.name}！你真好❤️`,
-          `${product.name}我收下啦，谢谢你～`,
-          `收到${product.name}啦，么么哒`,
-        ];
-        const replyText = leaveMessage
-          ? `收到${product.name}了~「${leaveMessage}」我看到啦，谢谢你！`
-          : replies[Math.floor(Math.random() * replies.length)];
-        const replyMsg: Message = {
-          id: uid("shopReply"),
-          sender: contactId,
-          type: "text",
-          text: replyText,
-          timestamp: Date.now() + 800,
-        };
         set((s) => ({
           conversations: s.conversations.map(c =>
-            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg, replyMsg] } : c
+            c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
           ),
         }));
+        // 对方收到礼物后按回复速度延迟回消息
+        const { replySpeedMin, replySpeedMax } = get().chat;
+        const replyDelay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
+        window.setTimeout(() => {
+          const replies = [
+            `谢谢！${product.name}收到了，超开心~`,
+            `哇，好喜欢${product.name}！你真好❤️`,
+            `${product.name}我收下啦，谢谢你～`,
+            `收到${product.name}啦，么么哒`,
+          ];
+          const replyText = leaveMessage
+            ? `收到${product.name}了~「${leaveMessage}」我看到啦，谢谢你！`
+            : replies[Math.floor(Math.random() * replies.length)];
+          const replyMsg: Message = {
+            id: uid("shopReply"),
+            sender: contactId,
+            type: "text",
+            text: replyText,
+            timestamp: Date.now(),
+          };
+          set((s) => ({
+            conversations: s.conversations.map(c =>
+              c.id === conversationId ? { ...c, messages: [...c.messages, replyMsg] } : c
+            ),
+          }));
+        }, replyDelay);
       },
       sendRedpacket: (conversationId, amount, message) => {
         const conv = get().conversations.find(c => c.id === conversationId);
@@ -2821,31 +2878,86 @@ export const useAppStore = create<
             c.id === conversationId ? { ...c, messages: [...c.messages, myMsg] } : c
           ),
         }));
-        // 3-8秒后对方自动领取
-        const claimDelay = randRange(3000, 8000);
+        // 按回复速度延迟，对方领取(60%)或退回(40%)
+        const { replySpeedMin, replySpeedMax } = get().chat;
+        const claimDelay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
         window.setTimeout(() => {
-          set((s) => ({
-            conversations: s.conversations.map(c =>
-              c.id === conversationId
-                ? {
-                    ...c,
-                    messages: c.messages.map(m =>
-                      m.id === myMsg.id && m.redpacket && !m.redpacket.claimed
-                        ? { ...m, redpacket: { ...m.redpacket, claimed: true, claimedAt: Date.now() } }
-                        : m
-                    ),
-                  }
-                : c
-            ),
-          }));
-          // 领取后金额加到对方余额
-          const curData = get().shopData[contactId];
-          if (curData) {
+          const isReturned = Math.random() < 0.4; // 40% 概率退回
+          if (isReturned) {
+            // 退回：金额返还给我
             set((s) => ({
-              shopData: {
-                ...s.shopData,
-                [contactId]: { ...curData, herBalance: curData.herBalance + amount },
-              },
+              conversations: s.conversations.map(c =>
+                c.id === conversationId
+                  ? {
+                      ...c,
+                      messages: c.messages.map(m =>
+                        m.id === myMsg.id && m.redpacket
+                          ? { ...m, redpacket: { ...m.redpacket, returned: true, returnedAt: Date.now() } }
+                          : m
+                      ),
+                    }
+                  : c
+              ),
+            }));
+            const curData = get().shopData[contactId];
+            if (curData) {
+              set((s) => ({
+                shopData: {
+                  ...s.shopData,
+                  [contactId]: { ...curData, myBalance: curData.myBalance + amount },
+                },
+              }));
+            }
+            // 发送退回消息
+            const returnMsg: Message = {
+              id: uid("rpReturn"),
+              sender: contactId,
+              type: "text",
+              text: `你的红包我不收啦，退给你吧～`,
+              timestamp: Date.now(),
+            };
+            set((s) => ({
+              conversations: s.conversations.map(c =>
+                c.id === conversationId ? { ...c, messages: [...c.messages, returnMsg] } : c
+              ),
+            }));
+          } else {
+            // 领取
+            set((s) => ({
+              conversations: s.conversations.map(c =>
+                c.id === conversationId
+                  ? {
+                      ...c,
+                      messages: c.messages.map(m =>
+                        m.id === myMsg.id && m.redpacket && !m.redpacket.claimed
+                          ? { ...m, redpacket: { ...m.redpacket, claimed: true, claimedAt: Date.now() } }
+                          : m
+                      ),
+                    }
+                  : c
+              ),
+            }));
+            const curData = get().shopData[contactId];
+            if (curData) {
+              set((s) => ({
+                shopData: {
+                  ...s.shopData,
+                  [contactId]: { ...curData, herBalance: curData.herBalance + amount },
+                },
+              }));
+            }
+            // 发送已领取消息
+            const claimMsg: Message = {
+              id: uid("rpClaim"),
+              sender: contactId,
+              type: "text",
+              text: `红包收到啦，谢谢你～❤️`,
+              timestamp: Date.now(),
+            };
+            set((s) => ({
+              conversations: s.conversations.map(c =>
+                c.id === conversationId ? { ...c, messages: [...c.messages, claimMsg] } : c
+              ),
             }));
           }
         }, claimDelay);

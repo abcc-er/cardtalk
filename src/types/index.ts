@@ -65,6 +65,8 @@ export interface Message {
     message?: string;
     claimed?: boolean;
     claimedAt?: number;
+    returned?: boolean;
+    returnedAt?: number;
   };
 }
 
@@ -197,6 +199,12 @@ export interface SurveyQuestion {
   options?: string[];
 }
 
+export interface SurveyResponse {
+  respondent: string;
+  answers: { questionId: string; answer: string }[];
+  completedAt: number;
+}
+
 export interface Survey {
   id: string;
   title: string;
@@ -206,6 +214,7 @@ export interface Survey {
   scope: "personal" | "public";
   createdAt: number;
   approvedAt?: number;
+  responses?: SurveyResponse[];
 }
 
 // =========== 商店 ===========

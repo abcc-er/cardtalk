@@ -14,10 +14,11 @@ import PetApp from "./apps/PetApp";
 import FlyChessApp from "./apps/FlyChessApp";
 import SurveyApp from "./apps/SurveyApp";
 import ShopApp from "./apps/ShopApp";
+import StatementApp from "./apps/StatementApp";
 import HomeScreen from "./apps/HomeScreen";
 import { useAppStore } from "@/store/app";
 
-export type PhoneAppId = "home" | "chat" | "body" | "mood" | "work" | "travel" | "meals" | "phone" | "music" | "weather" | "tomato" | "driftbottle" | "pet" | "flychess" | "survey" | "shop";
+export type PhoneAppId = "home" | "chat" | "body" | "mood" | "work" | "travel" | "meals" | "phone" | "music" | "weather" | "tomato" | "driftbottle" | "pet" | "flychess" | "survey" | "shop" | "statement";
 
 // 可爱简约图标（SVG）
 const ChatIcon = ({ color }: { color: string }) => (
@@ -217,6 +218,15 @@ const ShopIcon = ({ color }: { color: string }) => (
   </svg>
 );
 
+const StatementIcon = ({ color }: { color: string }) => (
+  <svg viewBox="0 0 32 32" className="h-7 w-7">
+    <circle cx="16" cy="26" r="1.8" fill={color} opacity="0.3" />
+    <circle cx="16" cy="26" r="1.8" fill="none" stroke={color} strokeWidth="1.5" />
+    <path d="M15.3 7.2c0-1.2 1.4-1.2 1.4 0l0.6 12.6c0 1-1.4 1-2 0L15.3 7.2z" fill={color} opacity="0.2" />
+    <path d="M15.3 7.2c0-1.2 1.4-1.2 1.4 0l0.6 12.6c0 1-1.4 1-2 0L15.3 7.2z" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+  </svg>
+);
+
 const APPS: { id: PhoneAppId; name: string; Icon: (p: { color: string }) => JSX.Element; color: string }[] = [
   { id: "chat", name: "聊天", Icon: ChatIcon, color: "#3A7CA5" },
   { id: "meals", name: "三餐", Icon: BowlIcon, color: "#FF8A65" },
@@ -233,6 +243,7 @@ const APPS: { id: PhoneAppId; name: string; Icon: (p: { color: string }) => JSX.
   { id: "survey", name: "问卷", Icon: SurveyIcon, color: "#9C6ADE" },
   { id: "shop", name: "商店", Icon: ShopIcon, color: "#FF8C42" },
   { id: "driftbottle", name: "漂流瓶", Icon: StarIcon, color: "#0066B3" },
+  { id: "statement", name: "声明", Icon: StatementIcon, color: "#FF5252" },
 ];
 
 export default function PhoneTabs() {
@@ -271,6 +282,7 @@ export default function PhoneTabs() {
         {app === "flychess" && <FlyChessApp onBack={() => setApp("home")} />}
         {app === "survey" && <SurveyApp onBack={() => setApp("home")} />}
         {app === "shop" && <ShopApp onBack={() => setApp("home")} />}
+        {app === "statement" && <StatementApp onBack={() => setApp("home")} />}
       </div>
 
       {/* Home 指示条 */}

@@ -116,7 +116,7 @@ export default function App() {
     });
   }, []);
 
-  // 对方主动写信：每30分钟给每段私聊4%概率随机发 5-9 条字卡（聊天模块）
+  // 对方主动写信：每30分钟给每段私聊4%概率随机发 5-9 条字卡合并成一条消息（聊天模块）
   useEffect(() => {
     const checkAndSendAutoLetters = () => {
       const state = useAppStore.getState();
@@ -132,30 +132,31 @@ export default function App() {
         const shuffled = [...chatCards].sort(() => Math.random() - 0.5);
         const picks = shuffled.slice(0, Math.min(count, chatCards.length));
 
-        const baseTs = Date.now();
-        const msgs = picks.map((card, i) => {
-          // 每条消息先尝试用 name，再用 content
-          const text =
-            card.name && card.content
-              ? `${card.name}\n${card.content}`
-              : (card.name || card.content || "");
-          return {
-            id: `auto-letter-${baseTs}-${i}`,
-            sender: contactId,
-            type: "text" as const,
-            text,
-            timestamp: baseTs + i * 200,
-            isAutoInitiated: true,
-          };
-        });
+        if (picks.length === 0) return;
 
-        if (msgs.length > 0) {
-          useAppStore.setState((s) => ({
-            conversations: s.conversations.map((c) =>
-              c.id === conv.id ? { ...c, messages: [...c.messages, ...msgs] } : c
-            ),
-          }));
-        }
+        // 合并成一条消息
+        const combinedText = picks
+          .map((card) => {
+            if (card.name && card.content) return `${card.name}\n${card.content}`;
+            return card.name || card.content || "";
+          })
+          .filter(Boolean)
+          .join("\n\n");
+
+        const msg = {
+          id: `auto-letter-${Date.now()}`,
+          sender: contactId,
+          type: "text" as const,
+          text: combinedText,
+          timestamp: Date.now(),
+          isAutoInitiated: true,
+        };
+
+        useAppStore.setState((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === conv.id ? { ...c, messages: [...c.messages, msg] } : c
+          ),
+        }));
       });
     };
 

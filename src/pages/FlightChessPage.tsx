@@ -317,6 +317,7 @@ export default function FlightChessPage() {
   const [tomatoes, setTomatoes] = useState<Tomato[]>([]);
   const [tomatoCounts, setTomatoCounts] = useState<Record<string, number>>({});
   const [tomatoCooldown, setTomatoCooldown] = useState(false);
+  const [chatInput, setChatInput] = useState("");
   const boardRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const aiTimerRef = useRef<number | null>(null);
@@ -424,6 +425,28 @@ export default function FlightChessPage() {
     const card = cards[Math.floor(Math.random() * cards.length)];
     addChatMessage(color, card.content);
   }, [getChatCardsForPlayer, addChatMessage]);
+
+  const handleSendChat = useCallback(() => {
+    const text = chatInput.trim();
+    if (!text) return;
+    addChatMessage("red", text);
+    setChatInput("");
+    // 随机联系人回复
+    const otherColors = (gameState?.players || ["red"]).filter((c) => c !== "red");
+    if (otherColors.length === 0) return;
+    const replyColor = otherColors[Math.floor(Math.random() * otherColors.length)];
+    const delay = 1000 + Math.random() * 3000;
+    setTimeout(() => {
+      const cards = getChatCardsForPlayer(replyColor);
+      if (cards.length > 0 && Math.random() < 0.7) {
+        const card = cards[Math.floor(Math.random() * cards.length)];
+        addChatMessage(replyColor, card.content);
+      } else {
+        const genericReplies = ["哈哈", "嗯嗯", "好的好的", "继续加油！", "有意思", "我也觉得", "别打我啊", "快投骰子吧"];
+        addChatMessage(replyColor, genericReplies[Math.floor(Math.random() * genericReplies.length)]);
+      }
+    }, delay);
+  }, [chatInput, addChatMessage, gameState, getChatCardsForPlayer]);
 
   const throwTomato = useCallback((fromColor: PlayerColor, toColor: PlayerColor) => {
     const tomato: Tomato = {
@@ -1513,26 +1536,47 @@ export default function FlightChessPage() {
             <div ref={chatEndRef} />
           </div>
 
-          <div className="flex items-center gap-3 p-3 border-t border-gray-200 bg-white">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 whitespace-nowrap">骰子</span>
-              <div className={gameState.isRolling ? "animate-bounce" : ""}>
-                <DiceFace value={gameState.dice} color={gameState.currentPlayer} />
-              </div>
+          <div className="border-t border-gray-200 bg-white">
+            <div className="flex items-center gap-2 px-3 pt-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSendChat(); }}
+                placeholder="发条消息..."
+                className="flex-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs focus:outline-none focus:border-purple-400"
+              />
+              <button
+                onClick={handleSendChat}
+                disabled={!chatInput.trim()}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                  chatInput.trim() ? "bg-purple-500 text-white active:scale-95" : "bg-gray-200 text-gray-400"
+                }`}
+              >
+                发送
+              </button>
             </div>
-            <div className="flex-1" />
-            <button
-              onClick={rollDice}
-              disabled={!isMyTurn || gameState.isRolling || gameState.phase !== "idle" || !!gameState.winner}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white text-sm transition-all ${
-                isMyTurn && !gameState.isRolling && gameState.phase === "idle" && !gameState.winner
-                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 shadow-lg active:scale-95"
-                  : "bg-gray-300 cursor-not-allowed"
-              }`}
-            >
-              <span className="text-lg">🎲</span>
-              {gameState.winner ? "结束" : gameState.isRolling ? "..." : isMyTurn ? (gameState.phase === "choosing" ? "选棋子" : "投骰子") : "等待中"}
-            </button>
+            <div className="flex items-center gap-3 p-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 whitespace-nowrap">骰子</span>
+                <div className={gameState.isRolling ? "animate-bounce" : ""}>
+                  <DiceFace value={gameState.dice} color={gameState.currentPlayer} />
+                </div>
+              </div>
+              <div className="flex-1" />
+              <button
+                onClick={rollDice}
+                disabled={!isMyTurn || gameState.isRolling || gameState.phase !== "idle" || !!gameState.winner}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white text-sm transition-all ${
+                  isMyTurn && !gameState.isRolling && gameState.phase === "idle" && !gameState.winner
+                    ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 shadow-lg active:scale-95"
+                    : "bg-gray-300 cursor-not-allowed"
+                }`}
+              >
+                <span className="text-lg">🎲</span>
+                {gameState.winner ? "结束" : gameState.isRolling ? "..." : isMyTurn ? (gameState.phase === "choosing" ? "选棋子" : "投骰子") : "等待中"}
+              </button>
+            </div>
           </div>
         </div>
       </div>

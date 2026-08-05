@@ -1100,34 +1100,7 @@ function MessageBubble({
   }
 
   if (message.type === "survey" && message.survey) {
-    const s = message.survey;
-    const isCompleted = !!s.answers;
-    return (
-      <div className="animate-bubbleIn rounded-2xl border p-3" style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--card-border) 50%, transparent)", minWidth: "220px", maxWidth: "300px" }}>
-        <div className="mb-2 flex items-center gap-2">
-          <span className="text-sm font-medium" style={{ color: "var(--accent)" }}>📋 {s.title}</span>
-          {isCompleted && <span className="text-[10px] rounded-full px-1.5 py-0.5" style={{ background: "color-mix(in srgb, var(--accent) 20%, transparent)", color: "var(--accent)" }}>已回答</span>}
-        </div>
-        <div className="space-y-1.5">
-          {s.questions.map((q, i) => (
-            <div key={q.id} className="text-[13px]">
-              <div style={{ color: "var(--text)" }}>{i + 1}. {q.text}</div>
-              {isCompleted && s.answers?.find(a => a.questionId === q.id) && (
-                <div className="mt-0.5 pl-3 text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 60%, transparent)" }}>
-                  → {s.answers.find(a => a.questionId === q.id)?.answer}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        {!isCompleted && (
-          <div className="mt-2 text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-            等待对方回答中...
-          </div>
-        )}
-        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
-      </div>
-    );
+    return <SurveyBubble message={message} time={time} bgColor={bgColor} />;
   }
 
   if (message.type === "shop" && message.shop) {
@@ -1164,27 +1137,46 @@ function MessageBubble({
   if (message.type === "redpacket" && message.redpacket) {
     const rp = message.redpacket;
     const isMine = message.sender === "me";
-    const canClaim = !rp.claimed && !isMine;
+    const canClaim = !rp.claimed && !rp.returned && !isMine;
+    const isReturned = !!rp.returned;
+    const isClaimed = !!rp.claimed;
     return (
       <div
-        className={`animate-bubbleIn rounded-2xl border p-3 ${canClaim ? "cursor-pointer active:scale-95" : ""}`}
-        style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--accent) 30%, transparent)", minWidth: "160px", transition: "transform 0.15s" }}
+        className={`animate-bubbleIn rounded-xl px-3 py-2.5 ${canClaim ? "cursor-pointer active:scale-95" : ""}`}
+        style={{
+          background: isReturned ? "color-mix(in srgb, var(--text-soft) 10%, var(--card))" : isClaimed ? "color-mix(in srgb, var(--accent) 8%, var(--card))" : "var(--card)",
+          border: "1px solid color-mix(in srgb, var(--accent) 20%, var(--card-border))",
+          minWidth: "140px",
+          maxWidth: "200px",
+          transition: "transform 0.15s",
+        }}
         onClick={canClaim ? () => claimRedpacket(activeConversationId, message.id) : undefined}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🧧</span>
-          <div className="flex-1">
-            <div className="text-sm font-medium" style={{ color: "var(--text)" }}>红包</div>
-            {rp.message && <div className="text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 55%, transparent)" }}>{rp.message}</div>}
-          </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isReturned ? "var(--text-soft)" : "var(--accent)"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            {isReturned ? (
+              <><path d="M9 14l-4-4 4-4" /><path d="M20 20v-7a4 4 0 00-4-4H5" /></>
+            ) : (
+              <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 9h16" /><circle cx="12" cy="14" r="2.5" /></>
+            )}
+          </svg>
+          <span className="text-[13px] font-medium" style={{ color: "var(--text)" }}>
+            {isReturned ? "红包退回" : "红包"}
+          </span>
+          <span className="ml-auto text-[15px] font-bold" style={{ color: isReturned ? "var(--text-soft)" : "var(--accent)" }}>
+            ¥{rp.amount}
+          </span>
         </div>
-        <div className="mt-1.5 text-sm font-bold" style={{ color: "#E91E63" }}>
-          ¥{rp.amount}
-          {rp.claimed && <span className="ml-2 text-[11px] font-normal" style={{ color: "#4CAF50" }}>已领取</span>}
-          {canClaim && <span className="ml-2 text-[11px] font-normal" style={{ color: "var(--accent)" }}>点击领取</span>}
-          {isMine && !rp.claimed && <span className="ml-2 text-[11px] font-normal" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>等待领取</span>}
+        {rp.message && !isReturned && (
+          <div className="mt-0.5 text-[11px]" style={{ color: "var(--text-soft)" }}>{rp.message}</div>
+        )}
+        <div className="mt-1 text-[10px]" style={{ color: "var(--text-soft)" }}>
+          {canClaim && "✨ 点击领取"}
+          {isClaimed && "已领取 ✓"}
+          {isReturned && "已退回"}
+          {isMine && !isClaimed && !isReturned && "等待中..."}
         </div>
-        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
+        <span className="mt-0.5 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 40%, transparent)" }}>{time}</span>
       </div>
     );
   }
@@ -1232,6 +1224,75 @@ function MessageBubble({
         {time}
       </span>
     </>
+  );
+}
+
+function SurveyBubble({ message, time, bgColor }: { message: Message; time: string; bgColor: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const s = message.survey!;
+  const isCompleted = !!s.answers;
+
+  // 折叠时预览：显示标题 + 题数 + 第一题回答
+  const firstAnswer = isCompleted && s.answers?.[0]
+    ? s.answers[0].answer
+    : null;
+
+  return (
+    <div
+      className="animate-bubbleIn rounded-xl border p-3 cursor-pointer"
+      style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--card-border) 50%, transparent)", minWidth: "200px", maxWidth: "280px" }}
+      onClick={() => isCompleted && setExpanded(!expanded)}
+    >
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-[13px] font-medium" style={{ color: "var(--accent)" }}>📋 {s.title}</span>
+        {isCompleted && (
+          <span className="text-[10px] rounded-full px-1.5 py-0.5" style={{ background: "color-mix(in srgb, var(--accent) 20%, transparent)", color: "var(--accent)" }}>
+            已回答
+          </span>
+        )}
+        {isCompleted && (
+          <span className="ml-auto text-[10px]" style={{ color: "var(--text-soft)" }}>
+            {expanded ? "收起 ▲" : "展开 ▼"}
+          </span>
+        )}
+      </div>
+
+      {/* 折叠状态：预览 */}
+      {!expanded && (
+        <div>
+          <div className="text-[11px]" style={{ color: "var(--text-soft)" }}>
+            {s.questions.length} 道题
+          </div>
+          {isCompleted && firstAnswer ? (
+            <div className="mt-1 text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 70%, transparent)" }}>
+              {s.questions[0]?.text}：{firstAnswer}
+            </div>
+          ) : !isCompleted ? (
+            <div className="mt-1 text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+              等待对方回答中...
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* 展开状态：完整问卷 */}
+      {expanded && isCompleted && (
+        <div className="space-y-1.5">
+          {s.questions.map((q, i) => (
+            <div key={q.id} className="text-[13px]">
+              <div style={{ color: "var(--text)" }}>{i + 1}. {q.text}</div>
+              {s.answers?.find(a => a.questionId === q.id) && (
+                <div className="mt-0.5 pl-3 text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 60%, transparent)" }}>
+                  → {s.answers.find(a => a.questionId === q.id)?.answer}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}</span>
+    </div>
   );
 }
 

@@ -31,7 +31,13 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
   // view: "list" | "create" | "admin"
   const [view, setView] = useState<"list" | "create" | "admin">("list");
   const [adminPassword, setAdminPassword] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("survey_admin_logged_in") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [passwordError, setPasswordError] = useState(false);
 
   // 创建/投稿 共用表单
@@ -183,6 +189,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
         .eq("id", id);
       if (error) throw error;
       fetchPending();
+      fetchApproved();
     } catch (e) {
       console.warn("[问卷库] 审核失败", e);
     }
@@ -197,6 +204,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
         .eq("id", id);
       if (error) throw error;
       fetchPending();
+      fetchApproved();
     } catch (e) {
       console.warn("[问卷库] 拒绝失败", e);
     }
@@ -211,6 +219,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
         .eq("id", id);
       if (error) throw error;
       fetchPending();
+      fetchApproved();
     } catch (e) {
       console.warn("[问卷库] 删除失败", e);
     }
@@ -221,6 +230,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
       setIsAdmin(true);
       setPasswordError(false);
       setAdminPassword("");
+      try { localStorage.setItem("survey_admin_logged_in", "1"); } catch {}
     } else {
       setPasswordError(true);
     }
@@ -359,7 +369,28 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
                       <span>{s.questions.length} 题</span>
                       <span>·</span>
                       <span>by {s.author}</span>
+                      {s.responses && s.responses.length > 0 && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: "var(--accent)" }}>收到 {s.responses.length} 份回答</span>
+                        </>
+                      )}
                     </div>
+                    {s.responses && s.responses.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {s.responses.map((r, i) => (
+                          <div key={i} className="rounded-lg px-2 py-1 text-[11px]" style={{ background: "color-mix(in srgb, var(--accent) 6%, transparent)", color: "var(--text)" }}>
+                            <span style={{ color: "var(--accent)" }}>{r.respondent}</span>
+                            {": "}
+                            {r.answers.slice(0, 2).map((a, j) => {
+                              const q = s.questions.find(qq => qq.id === a.questionId);
+                              return <span key={j}>{j > 0 && " · "}{q?.text?.slice(0, 6)}→{a.answer}</span>;
+                            })}
+                            {r.answers.length > 2 && "..."}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-2 flex justify-end gap-2">
                       <button
                         onClick={() => deleteSurvey(s.id)}
@@ -404,6 +435,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
                       setIsAdmin(false);
                       setAdminPassword("");
                       setPasswordError(false);
+                      try { localStorage.removeItem("survey_admin_logged_in"); } catch {}
                       setView("admin");
                     }}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition active:scale-90"
@@ -473,7 +505,7 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
                       <span>·</span>
                       <span>by {s.author}</span>
                     </div>
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex justify-end gap-1.5">
                       <button
                         onClick={() => handleApplyRemote(s)}
                         className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm"
@@ -482,6 +514,19 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
                         <Send className="h-3.5 w-3.5" />
                         套用
                       </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteRemote(s.id)}
+                          className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-sm"
+                          style={{
+                            background: "transparent",
+                            color: "#E53935",
+                            border: "1px solid var(--card-border)",
+                          }}
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -740,7 +785,10 @@ export default function SurveyApp({ onBack }: { onBack: () => void }) {
                     待审核 · {remotePending.length}
                   </div>
                   <button
-                    onClick={() => setIsAdmin(false)}
+                    onClick={() => {
+                      setIsAdmin(false);
+                      try { localStorage.removeItem("survey_admin_logged_in"); } catch {}
+                    }}
                     className="text-[11px]"
                     style={{ color: "var(--accent)" }}
                   >
