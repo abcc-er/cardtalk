@@ -13,6 +13,7 @@ import { useAppStore } from "@/store/app";
 const hashBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
 const NOTIFICATION_ICON = "https://i.postimg.cc/ZKVRS4kH/retouch-2026071501420750.png";
 
+// 需要预加载的本地资源（相对 BASE_URL）
 const DRIFT_BOTTLE_IMAGES = [
   "driftbottle/bg.jpg",
   "driftbottle/coral.png",
@@ -23,6 +24,21 @@ const DRIFT_BOTTLE_IMAGES = [
   "driftbottle/envelope.png",
   "driftbottle/letter.jpg",
   "driftbottle/diary.jpg",
+];
+
+// 需要预加载的远程 CDN 图片（绝对 URL）
+const REMOTE_IMAGES = [
+  // 砸番茄图片（聊天头像、番茄动画）
+  "https://i.postimg.cc/ZKVRS4kH/retouch-2026071501420750.png",
+  // 主题背景图
+  "https://i.postimg.cc/528g6Ysj/Screenshot-20260715-002626.jpg",
+  "https://i.postimg.cc/sgfFjmg4/Screenshot-20260714-221404.jpg",
+  "https://i.postimg.cc/KYKHjHST/Screenshot-20260714-221624.jpg",
+  "https://i.postimg.cc/fy7yYCXD/retouch-2026071421514316.png",
+  "https://i.postimg.cc/fW11dZT7/retouch-2026071422013733.png",
+  "https://i.postimg.cc/BbwSTzbJ/retouch-2026071422075959.png",
+  "https://i.postimg.cc/3xNpHMm4/Screenshot-20260714-220506.jpg",
+  "https://i.postimg.cc/2yKvm8w7/Camera-XHS-17840462551361040g2sg317haqv5h3u705oq4lp3654ovo179du8.jpg",
 ];
 
 export default function App() {
@@ -110,9 +126,15 @@ export default function App() {
   }, [notificationGranted, beauty.herName, pushNotification]);
 
   useEffect(() => {
+    // 预加载本地资源（漂流瓶等）
     DRIFT_BOTTLE_IMAGES.forEach((path) => {
       const img = new Image();
       img.src = `${hashBasename}/${path}`;
+    });
+    // 预加载远程 CDN 图片（砸番茄、主题背景）
+    REMOTE_IMAGES.forEach((url) => {
+      const img = new Image();
+      img.src = url;
     });
   }, []);
 
