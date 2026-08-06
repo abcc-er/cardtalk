@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useAppStore } from "@/store/app";
 import type { Message, Contact, TomatoThrow, ViewSide } from "@/types";
 import { Music, Play, Pause, Reply, RotateCcw, Trash2 } from "lucide-react";
@@ -295,6 +295,16 @@ export default function MessageList() {
 
   const bubbleStyle = getBubbleStyle(beauty.bubbleStyle);
 
+  // 找出「我」发的最新一条 readStatus === "ignored" 的消息 id：只在这一条的头像上标红 ^^
+  const latestMineIgnoredMsgId = React.useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (!m || m.type === "system" || m.recalled) continue;
+      if (m.sender === "me" && m.readStatus === "ignored") return m.id;
+    }
+    return null;
+  }, [messages]);
+
   return (
     <div
       ref={scrollRef}
@@ -325,18 +335,22 @@ export default function MessageList() {
           const isNew = i === messages.length - 1;
 
           // 连续消息间距：和上一条是同一方（私聊不看名字，群聊看同一sender）、非系统消息、非番茄消息 -> 缩小间距
+          // 我的连续消息：0间距紧贴；对方连续：2px 小间距；换边：4px 间距
           let gapClass = "mt-4";
           const isNonSystem = m.type !== "system";
           const prevIsNonSystem = prev && prev.type !== "system";
           if (isNonSystem && prevIsNonSystem && !m.recalled && !prev?.recalled) {
             const sameSide = getSide(m.sender) === getSide(prev!.sender);
-            if (conv?.type === "group") {
-              if (sameSide && m.sender === prev!.sender) gapClass = "mt-1";
-              else if (sameSide) gapClass = "mt-2";
-              else gapClass = "mt-2";
+            const isMine = m.sender === "me";
+            if (sameSide && isMine && prev!.sender === "me") {
+              gapClass = "mt-0";
+            } else if (conv?.type === "group") {
+              if (sameSide && m.sender === prev!.sender) gapClass = "mt-0.5";
+              else if (sameSide) gapClass = "mt-1.5";
+              else gapClass = "mt-1.5";
             } else {
-              if (sameSide) gapClass = "mt-1";
-              else gapClass = "mt-2";
+              if (sameSide) gapClass = "mt-0.5";
+              else gapClass = "mt-1.5";
             }
           }
 
@@ -375,6 +389,7 @@ export default function MessageList() {
                   getAvatarText={getAvatarText}
                   getAvatarImage={getAvatarImage}
                   bubbleStyle={bubbleStyle}
+                  showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
                 />
               </div>
             );
@@ -390,6 +405,7 @@ export default function MessageList() {
                   getAvatarText={getAvatarText}
                   getAvatarImage={getAvatarImage}
                   bubbleStyle={bubbleStyle}
+                  showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
                 />
               </div>
             );
@@ -436,6 +452,7 @@ export default function MessageList() {
                     onMouseDown={handleAvatarMouseDown}
                     msgId={m.id}
                     tomatoCount={tomatoThrows.filter((t) => t.targetMsgId === m.id && t.conversationId === activeConversationId).length}
+                    showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
                   />
                 </div>
               )}
@@ -488,12 +505,12 @@ export default function MessageList() {
                     renderTextWithMention={renderTextWithMention}
                     isNew={isNew}
                   />
-                  {m.sender === "me" && m.readStatus && (
+                  {m.sender === "me" && m.readStatus === "read" && (
                     <div
-                      className={`mt-0.5 text-[10px] text-right pr-1 ${m.readStatus === "ignored" ? "font-semibold" : ""}`}
-                      style={{ color: m.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+                      className="mt-0.5 text-[10px] text-right pr-1"
+                      style={{ color: "var(--text-soft)" }}
                     >
-                      {m.readStatus === "ignored" ? "已读不回" : "已读"}
+                      已读
                     </div>
                   )}
                 </div>
@@ -510,6 +527,7 @@ export default function MessageList() {
                     onMouseDown={handleAvatarMouseDown}
                     msgId={m.id}
                     tomatoCount={tomatoThrows.filter((t) => t.targetMsgId === m.id && t.conversationId === activeConversationId).length}
+                    showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
                   />
                 </div>
               )}
@@ -633,6 +651,7 @@ function MessageAvatar({
   onMouseDown: onAvatarMouseDown,
   msgId,
   tomatoCount,
+  showReadIgnoredBadge,
 }: {
   senderId: string;
   avatarText: string;
@@ -645,6 +664,7 @@ function MessageAvatar({
   onMouseDown?: (senderId: string, msgId: string, clientX: number, clientY: number) => void;
   msgId?: string;
   tomatoCount?: number;
+  showReadIgnoredBadge?: boolean;
 }) {
   const [isPating, setIsPating] = useState(false);
   const dim = size === "sm" ? "h-[36px] w-[36px] text-[12px]" : "h-[36px] w-[36px] text-[12px]";
@@ -796,13 +816,36 @@ function MessageAvatar({
     </div>
   );
 
-  if (!tomatoCount || tomatoCount <= 0) return avatarEl;
+  const hasBadge = !!showReadIgnoredBadge;
+  const hasTomato = !!tomatoCount && tomatoCount > 0;
 
-  const count = Math.min(tomatoCount, 10);
+  if (!hasBadge && !hasTomato) return avatarEl;
+
+  const count = Math.min(tomatoCount || 0, 10);
   return (
     <div className="relative flex items-center justify-center" style={{ height: "36px", width: "36px" }}>
       {avatarEl}
-      {Array.from({ length: count }).map((_, i) => {
+      {hasBadge && (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            top: "-11px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: "18px",
+            lineHeight: 1,
+            letterSpacing: "-2px",
+            color: "#E74C3C",
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+            fontWeight: 900,
+            zIndex: 10,
+          }}
+          title="已读不回"
+        >
+          ^&nbsp;^
+        </div>
+      )}
+      {hasTomato && Array.from({ length: count }).map((_, i) => {
         const bottomBase = 24;
         const offsetPer = 6;
         const bottomPx = bottomBase + i * offsetPer;
@@ -1330,6 +1373,7 @@ function RPSBubble({
   getAvatarText,
   getAvatarImage,
   bubbleStyle,
+  showReadIgnoredBadge,
 }: {
   message: Message;
   side: "left" | "right";
@@ -1337,6 +1381,7 @@ function RPSBubble({
   getAvatarText: (id: string) => string;
   getAvatarImage: (id: string) => string;
   bubbleStyle: React.CSSProperties;
+  showReadIgnoredBadge?: boolean;
 }) {
   const isLeft = side === "left";
   const rps = message.rps!;
@@ -1374,6 +1419,7 @@ function RPSBubble({
             senderId={message.sender}
             avatarText={getAvatarText(message.sender)}
             avatarImage={getAvatarImage(message.sender)}
+            showReadIgnoredBadge={showReadIgnoredBadge}
           />
         </div>
       )}
@@ -1410,12 +1456,12 @@ function RPSBubble({
           </div>
         </div>
         <div className={`mt-0.5 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
-          {message.sender === "me" && message.readStatus && (
+          {message.sender === "me" && message.readStatus === "read" && (
             <div
-              className={`text-[10px] text-right ${message.readStatus === "ignored" ? "font-semibold" : ""}`}
-              style={{ color: message.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+              className="text-[10px] text-right"
+              style={{ color: "var(--text-soft)" }}
             >
-              {message.readStatus === "ignored" ? "已读不回" : "已读"}
+              已读
             </div>
           )}
           <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
@@ -1429,6 +1475,7 @@ function RPSBubble({
             senderId={message.sender}
             avatarText={getAvatarText(message.sender)}
             avatarImage={getAvatarImage(message.sender)}
+            showReadIgnoredBadge={showReadIgnoredBadge}
           />
         </div>
       )}
@@ -1443,6 +1490,7 @@ function PollBubble({
   getAvatarText,
   getAvatarImage,
   bubbleStyle,
+  showReadIgnoredBadge,
 }: {
   message: Message;
   side: "left" | "right";
@@ -1450,6 +1498,7 @@ function PollBubble({
   getAvatarText: (id: string) => string;
   getAvatarImage: (id: string) => string;
   bubbleStyle: React.CSSProperties;
+  showReadIgnoredBadge?: boolean;
 }) {
   const isLeft = side === "left";
   const poll = message.poll!;
@@ -1474,6 +1523,7 @@ function PollBubble({
             senderId={message.sender}
             avatarText={getAvatarText(message.sender)}
             avatarImage={getAvatarImage(message.sender)}
+            showReadIgnoredBadge={showReadIgnoredBadge}
           />
         </div>
       )}
@@ -1525,12 +1575,12 @@ function PollBubble({
           })}
         </div>
         <div className={`mt-0.5 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
-          {message.sender === "me" && message.readStatus && (
+          {message.sender === "me" && message.readStatus === "read" && (
             <div
-              className={`text-[10px] text-right ${message.readStatus === "ignored" ? "font-semibold" : ""}`}
-              style={{ color: message.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+              className="text-[10px] text-right"
+              style={{ color: "var(--text-soft)" }}
             >
-              {message.readStatus === "ignored" ? "已读不回" : "已读"}
+              已读
             </div>
           )}
           <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
@@ -1544,6 +1594,7 @@ function PollBubble({
             senderId={message.sender}
             avatarText={getAvatarText(message.sender)}
             avatarImage={getAvatarImage(message.sender)}
+            showReadIgnoredBadge={showReadIgnoredBadge}
           />
         </div>
       )}
