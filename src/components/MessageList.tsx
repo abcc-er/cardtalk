@@ -1409,9 +1409,19 @@ function RPSBubble({
             {resultText()}
           </div>
         </div>
-        <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-        </span>
+        <div className={`mt-0.5 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
+          {message.sender === "me" && message.readStatus && (
+            <div
+              className={`text-[10px] text-right ${message.readStatus === "ignored" ? "font-semibold" : ""}`}
+              style={{ color: message.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+            >
+              {message.readStatus === "ignored" ? "已读不回" : "已读"}
+            </div>
+          )}
+          <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+            {time}
+          </span>
+        </div>
       </div>
       {!isLeft && (
         <div className="flex w-9 shrink-0 justify-center">
@@ -1514,9 +1524,19 @@ function PollBubble({
             );
           })}
         </div>
-        <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-        </span>
+        <div className={`mt-0.5 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
+          {message.sender === "me" && message.readStatus && (
+            <div
+              className={`text-[10px] text-right ${message.readStatus === "ignored" ? "font-semibold" : ""}`}
+              style={{ color: message.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+            >
+              {message.readStatus === "ignored" ? "已读不回" : "已读"}
+            </div>
+          )}
+          <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
+            {time}
+          </span>
+        </div>
       </div>
       {!isLeft && (
         <div className="flex w-9 shrink-0 justify-center">

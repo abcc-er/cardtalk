@@ -2297,6 +2297,7 @@ export const useAppStore = create<
           music: song,
           text: `${myName} 发起了一起听「${song.title}」`,
           timestamp: Date.now(),
+          readStatus: "read",
         };
 
         set((s) => ({
@@ -2486,6 +2487,7 @@ export const useAppStore = create<
             resolved: true,
           },
           timestamp: Date.now(),
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map((c) =>
@@ -2511,6 +2513,7 @@ export const useAppStore = create<
             gameId: uid("flychess"),
           },
           timestamp: Date.now(),
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map((c) =>
@@ -2545,6 +2548,7 @@ export const useAppStore = create<
             resolved: true,
           },
           timestamp: Date.now(),
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map((c) =>
@@ -2654,6 +2658,7 @@ export const useAppStore = create<
             title: survey.title,
             questions: survey.questions,
           },
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map(c =>
@@ -2661,7 +2666,8 @@ export const useAppStore = create<
           ),
         }));
         // 20秒后对方自动回答
-        const replyDelay = 20 * 1000;
+        const { replySpeedMin: rplMin, replySpeedMax: rplMax } = get().chat;
+        const replyDelay = randRange(rplMin * 1000, (rplMax + 12) * 1000);
         window.setTimeout(() => {
           // 获取联系人字卡库聊天模块
           const chatCards = conv.type === "private"
@@ -2723,6 +2729,7 @@ export const useAppStore = create<
             title: survey.title,
             questions: survey.questions,
           },
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map(c =>
@@ -2730,7 +2737,8 @@ export const useAppStore = create<
           ),
         }));
         // 20秒后对方自动回答
-        const replyDelay = 20 * 1000;
+        const { replySpeedMin: rplMin, replySpeedMax: rplMax } = get().chat;
+        const replyDelay = randRange(rplMin * 1000, (rplMax + 12) * 1000);
         window.setTimeout(() => {
           // 获取联系人字卡库聊天模块
           const chatCards = conv.type === "private"
@@ -2887,6 +2895,7 @@ export const useAppStore = create<
           type: "shop",
           timestamp: Date.now(),
           shop: { productId: product.id, productName: product.name, price: product.price, emoji: product.emoji, action: "bought", leaveMessage: leaveMessage || undefined },
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map(c =>
@@ -2945,6 +2954,7 @@ export const useAppStore = create<
             message: message || "小小红包，收下吧～",
             claimed: false,
           },
+          readStatus: "read",
         };
         set((s) => ({
           conversations: s.conversations.map(c =>
@@ -3849,6 +3859,68 @@ export const useAppStore = create<
 
         setupShopRecommend();
         setupRedPacket();
+
+        // 主动发消息定时器：按 ChatSettings.autoMessage / autoIntervalMin/Max 控制
+        const setupAutoChatMessage = () => {
+          const state0 = useAppStore.getState();
+          const chat = state0.chat;
+          if (!chat.autoMessage) {
+            // 关闭时，60 秒后再检查是否被用户开启
+            window.setTimeout(setupAutoChatMessage, 60 * 1000);
+            return;
+          }
+          const minMs = Math.max(1, chat.autoIntervalMin) * 60 * 1000;
+          const maxMs = Math.max(minMs, chat.autoIntervalMax) * 60 * 1000;
+          const delay = minMs + Math.random() * (maxMs - minMs);
+
+          window.setTimeout(() => {
+            const st = useAppStore.getState();
+            const ch = st.chat;
+            if (ch.autoMessage && st.contacts.length > 0 && st.conversations.length > 0) {
+              // 从已有私聊中随机挑一个联系人
+              const privateConvs = st.conversations.filter((c) => c.type === "private" && c.memberIds.length > 0);
+              const convs = privateConvs.length > 0 ? privateConvs : st.conversations;
+              const targetConv = convs[Math.floor(Math.random() * convs.length)];
+              if (targetConv) {
+                const contactId = targetConv.memberIds[0];
+                const card = st.pickRandomCard(contactId, "chat");
+                if (card) {
+                  const stickers = st.stickers;
+                  const useSticker = stickers.length > 0 && Math.random() < 0.1;
+                  let msg: Message;
+                  if (useSticker) {
+                    const sticker = stickers[Math.floor(Math.random() * stickers.length)];
+                    msg = {
+                      id: uid("her"),
+                      sender: contactId,
+                      type: "sticker",
+                      sticker: sticker.image,
+                      timestamp: Date.now(),
+                      isAutoInitiated: true,
+                    };
+                  } else {
+                    msg = {
+                      id: uid("her"),
+                      sender: contactId,
+                      type: "text",
+                      text: card.content,
+                      card,
+                      timestamp: Date.now(),
+                      isAutoInitiated: true,
+                    };
+                  }
+                  useAppStore.setState((s) => ({
+                    conversations: s.conversations.map((c) =>
+                      c.id === targetConv.id ? { ...c, messages: [...c.messages, msg] } : c
+                    ),
+                  }));
+                }
+              }
+            }
+            setupAutoChatMessage();
+          }, delay);
+        };
+        setupAutoChatMessage();
       },
     },
   ),
