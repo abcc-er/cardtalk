@@ -68,6 +68,8 @@ export interface Message {
     returned?: boolean;
     returnedAt?: number;
   };
+  readIgnored?: boolean;
+  readStatus?: "none" | "read" | "ignored";
 }
 
 export interface MealRecord {

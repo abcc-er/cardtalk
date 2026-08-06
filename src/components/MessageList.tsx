@@ -318,11 +318,27 @@ export default function MessageList() {
           </button>
         </div>
       )}
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div className="mx-auto flex max-w-3xl flex-col">
         {messages.map((m, i) => {
           const prev = messages[i - 1];
           const next = messages[i + 1];
           const isNew = i === messages.length - 1;
+
+          // 连续消息间距：和上一条是同一方（私聊不看名字，群聊看同一sender）、非系统消息、非番茄消息 -> 缩小间距
+          let gapClass = "mt-4";
+          const isNonSystem = m.type !== "system";
+          const prevIsNonSystem = prev && prev.type !== "system";
+          if (isNonSystem && prevIsNonSystem && !m.recalled && !prev?.recalled) {
+            const sameSide = getSide(m.sender) === getSide(prev!.sender);
+            if (conv?.type === "group") {
+              if (sameSide && m.sender === prev!.sender) gapClass = "mt-1";
+              else if (sameSide) gapClass = "mt-2";
+              else gapClass = "mt-2";
+            } else {
+              if (sameSide) gapClass = "mt-1";
+              else gapClass = "mt-2";
+            }
+          }
 
           const isTomatoSystemMsg = m.type === "system" && (m.systemText?.includes("番茄") || m.systemText?.includes("扔了"));
           const prevIsTomato = prev?.type === "system" && (prev.systemText?.includes("番茄") || prev.systemText?.includes("扔了"));
@@ -336,12 +352,13 @@ export default function MessageList() {
           if (m.type === "system") {
             const hasMoreTomato = isTomatoSystemMsg && (nextIsTomato || prevIsTomato);
             return (
-              <SystemMessage
-                key={m.id}
-                message={m}
-                collapsed={tomatoMsgCollapsed && hasMoreTomato}
-                onToggleCollapse={hasMoreTomato ? () => setTomatoMsgCollapsed((v) => !v) : undefined}
-              />
+              <div key={m.id} className={gapClass}>
+                <SystemMessage
+                  message={m}
+                  collapsed={tomatoMsgCollapsed && hasMoreTomato}
+                  onToggleCollapse={hasMoreTomato ? () => setTomatoMsgCollapsed((v) => !v) : undefined}
+                />
+              </div>
             );
           }
 
@@ -350,29 +367,31 @@ export default function MessageList() {
 
           if (m.type === "rps" && m.rps) {
             return (
-              <RPSBubble
-                key={m.id}
-                message={m}
-                side={side}
-                getContactName={getContactName}
-                getAvatarText={getAvatarText}
-                getAvatarImage={getAvatarImage}
-                bubbleStyle={bubbleStyle}
-              />
+              <div key={m.id} className={gapClass}>
+                <RPSBubble
+                  message={m}
+                  side={side}
+                  getContactName={getContactName}
+                  getAvatarText={getAvatarText}
+                  getAvatarImage={getAvatarImage}
+                  bubbleStyle={bubbleStyle}
+                />
+              </div>
             );
           }
 
           if (m.type === "poll" && m.poll) {
             return (
-              <PollBubble
-                key={m.id}
-                message={m}
-                side={side}
-                getContactName={getContactName}
-                getAvatarText={getAvatarText}
-                getAvatarImage={getAvatarImage}
-                bubbleStyle={bubbleStyle}
-              />
+              <div key={m.id} className={gapClass}>
+                <PollBubble
+                  message={m}
+                  side={side}
+                  getContactName={getContactName}
+                  getAvatarText={getAvatarText}
+                  getAvatarImage={getAvatarImage}
+                  bubbleStyle={bubbleStyle}
+                />
+              </div>
             );
           }
 
@@ -380,7 +399,7 @@ export default function MessageList() {
             const side = getSide(m.sender);
             const isMine = (view === "me" && m.sender === "me") || (view === "her" && m.sender !== "me");
             return (
-              <div key={m.id} className={`flex items-center gap-2 ${side === "left" ? "justify-start" : "justify-end"}`}>
+              <div key={m.id} className={`${gapClass} flex items-center gap-2 ${side === "left" ? "justify-start" : "justify-end"}`}>
                 {side === "left" && <div className="w-9 shrink-0" />}
                 <div className="py-1 px-3 text-[13px] italic" style={{ color: "var(--text-soft)" }}>
                   {isMine ? "你撤回了一条消息" : "对方撤回了一条消息"}
@@ -391,7 +410,7 @@ export default function MessageList() {
           }
 
           return (
-            <div key={m.id} className={`relative flex items-center gap-2 ${isLeft ? "justify-start" : "justify-end"}`}
+            <div key={m.id} className={`${gapClass} relative flex items-center gap-2 ${isLeft ? "justify-start" : "justify-end"}`}
               data-msg-id={m.id}
               data-sender={m.sender}
               onContextMenu={(e) => handleLongPress(e, m.id, m.sender)}
@@ -469,6 +488,14 @@ export default function MessageList() {
                     renderTextWithMention={renderTextWithMention}
                     isNew={isNew}
                   />
+                  {m.sender === "me" && m.readStatus && (
+                    <div
+                      className={`mt-0.5 text-[10px] text-right pr-1 ${m.readStatus === "ignored" ? "font-semibold" : ""}`}
+                      style={{ color: m.readStatus === "ignored" ? "#E74C3C" : "var(--text-soft)" }}
+                    >
+                      {m.readStatus === "ignored" ? "已读不回" : "已读"}
+                    </div>
+                  )}
                 </div>
               </div>
               {!isLeft && (

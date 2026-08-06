@@ -1489,6 +1489,18 @@ export const useAppStore = create<
           quoteSender,
         };
 
+        const { replySpeedMin, replySpeedMax, waterReminder, readIgnoreEnabled, privateReplyMin, privateReplyMax, groupReplyMin, groupReplyMax } = get().chat;
+        const myName = get().beauty.myName;
+
+        // 已读不回判定（只对我发出的消息生效，readIgnoreEnabled开启时）
+        const isReadIgnored = readIgnoreEnabled && Math.random() < 0.03;
+        if (isReadIgnored) {
+          myMsg.readIgnored = true;
+          myMsg.readStatus = "ignored";
+        } else {
+          myMsg.readStatus = "read";
+        }
+
         set((s) => ({
           quotingMessageId: null,
           conversations: s.conversations.map((c) =>
@@ -1505,8 +1517,8 @@ export const useAppStore = create<
           get().hidePet(conversationId, myMsg.id, "right", part);
         }
 
-        const { replySpeedMin, replySpeedMax, waterReminder } = get().chat;
-        const myName = get().beauty.myName;
+        // 已读不回：不回复
+        if (isReadIgnored) return;
 
         if (conv.type === "private") {
           const contactId = conv.memberIds[0];
@@ -1528,7 +1540,11 @@ export const useAppStore = create<
               ),
             }));
           }
-          const replyCount = Math.floor(Math.random() * 3) + 1;
+          const privateLo = Math.max(1, Math.min(12, privateReplyMin));
+          const privateHi = Math.max(privateLo, Math.min(12, privateReplyMax));
+          const replyCount = privateHi > privateLo
+            ? privateLo + Math.floor(Math.random() * (privateHi - privateLo + 1))
+            : privateLo;
 
           const sendNextReply = (index: number) => {
             if (index >= replyCount) {
@@ -1717,7 +1733,11 @@ export const useAppStore = create<
 
           sendNextReply(0);
         } else {
-          const replyCount = Math.floor(Math.random() * 4) + 2;
+          const groupLo = Math.max(1, Math.min(12, groupReplyMin));
+          const groupHi = Math.max(groupLo, Math.min(12, groupReplyMax));
+          const replyCount = groupHi > groupLo
+            ? groupLo + Math.floor(Math.random() * (groupHi - groupLo + 1))
+            : groupLo;
           const memberIds = conv.memberIds;
 
           const sendNextReply = (index: number) => {
@@ -1814,6 +1834,9 @@ export const useAppStore = create<
       sendStickerInConv: (conversationId, image, senderId) => {
         const conv = get().conversations.find((c) => c.id === conversationId);
         if (!conv) return;
+
+        const { replySpeedMin, replySpeedMax, readIgnoreEnabled, privateReplyMin, privateReplyMax, groupReplyMin, groupReplyMax } = get().chat;
+
         const msg: Message = {
           id: uid("stk"),
           sender: senderId,
@@ -1821,6 +1844,16 @@ export const useAppStore = create<
           sticker: image,
           timestamp: Date.now(),
         };
+
+        const needReadStatus = senderId === "me";
+        const isReadIgnored = needReadStatus && readIgnoreEnabled && Math.random() < 0.03;
+        if (isReadIgnored) {
+          msg.readIgnored = true;
+          msg.readStatus = "ignored";
+        } else if (needReadStatus) {
+          msg.readStatus = "read";
+        }
+
         set((s) => ({
           conversations: s.conversations.map((c) =>
             c.id === conversationId ? { ...c, messages: [...c.messages, msg] } : c
@@ -1828,16 +1861,23 @@ export const useAppStore = create<
         }));
 
         if (senderId === "me") {
-          const { replySpeedMin, replySpeedMax } = get().chat;
+          if (isReadIgnored) return;
           const contactId = conv.memberIds[0];
           const contact = get().contacts.find((c) => c.id === contactId);
 
           if (conv.type === "private" && contact) {
-            const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
-            window.setTimeout(() => {
-              const state = get();
-              const card = state.pickRandomCard(contactId, "chat");
-              if (!card) return;
+            const privateLo = Math.max(1, Math.min(12, privateReplyMin));
+            const privateHi = Math.max(privateLo, Math.min(12, privateReplyMax));
+            const replyCount = privateHi > privateLo
+              ? privateLo + Math.floor(Math.random() * (privateHi - privateLo + 1))
+              : privateLo;
+            const sendNext = (index: number) => {
+              if (index >= replyCount) return;
+              const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
+              window.setTimeout(() => {
+                const state = get();
+                const card = state.pickRandomCard(contactId, "chat");
+                if (!card) { sendNext(index + 1); return; }
 
               const stickers = state.stickers;
               const useSticker = stickers.length > 0 && Math.random() < 0.1;
@@ -1874,9 +1914,16 @@ export const useAppStore = create<
                     : c
                 ),
               }));
-            }, delay);
+                sendNext(index + 1);
+              }, delay);
+            };
+            sendNext(0);
           } else if (conv.type === "group") {
-            const replyCount = Math.floor(Math.random() * 4) + 2;
+            const groupLo = Math.max(1, Math.min(12, groupReplyMin));
+            const groupHi = Math.max(groupLo, Math.min(12, groupReplyMax));
+            const replyCount = groupHi > groupLo
+              ? groupLo + Math.floor(Math.random() * (groupHi - groupLo + 1))
+              : groupLo;
             const sendNext = (index: number) => {
               if (index >= replyCount) return;
               const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
@@ -1933,6 +1980,8 @@ export const useAppStore = create<
       sendImageInConv: (conversationId, image, senderId) => {
         const conv = get().conversations.find((c) => c.id === conversationId);
         if (!conv) return;
+
+        const { replySpeedMin, replySpeedMax, readIgnoreEnabled, privateReplyMin, privateReplyMax, groupReplyMin, groupReplyMax } = get().chat;
         const msg: Message = {
           id: uid("img"),
           sender: senderId,
@@ -1940,6 +1989,16 @@ export const useAppStore = create<
           image,
           timestamp: Date.now(),
         };
+
+        const needReadStatus = senderId === "me";
+        const isReadIgnored = needReadStatus && readIgnoreEnabled && Math.random() < 0.03;
+        if (isReadIgnored) {
+          msg.readIgnored = true;
+          msg.readStatus = "ignored";
+        } else if (needReadStatus) {
+          msg.readStatus = "read";
+        }
+
         set((s) => ({
           conversations: s.conversations.map((c) =>
             c.id === conversationId ? { ...c, messages: [...c.messages, msg] } : c
@@ -1947,36 +2006,50 @@ export const useAppStore = create<
         }));
 
         if (senderId === "me") {
-          const { replySpeedMin, replySpeedMax } = get().chat;
+          if (isReadIgnored) return;
           const contactId = conv.memberIds[0];
           const contact = get().contacts.find((c) => c.id === contactId);
 
           if (conv.type === "private" && contact) {
-            const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
-            window.setTimeout(() => {
-              const state = get();
-              const card = state.pickRandomCard(contactId, "chat");
-              if (!card) return;
+            const privateLo = Math.max(1, Math.min(12, privateReplyMin));
+            const privateHi = Math.max(privateLo, Math.min(12, privateReplyMax));
+            const replyCount = privateHi > privateLo
+              ? privateLo + Math.floor(Math.random() * (privateHi - privateLo + 1))
+              : privateLo;
+            const sendNext = (index: number) => {
+              if (index >= replyCount) return;
+              const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
+              window.setTimeout(() => {
+                const state = get();
+                const card = state.pickRandomCard(contactId, "chat");
+                if (!card) { sendNext(index + 1); return; }
 
-              const herMsg: Message = {
-                id: uid("her"),
-                sender: contactId,
-                type: "text",
-                text: card.content,
-                card,
-                timestamp: Date.now(),
-              };
+                const herMsg: Message = {
+                  id: uid("her"),
+                  sender: contactId,
+                  type: "text",
+                  text: card.content,
+                  card,
+                  timestamp: Date.now(),
+                };
 
-              set((s) => ({
-                conversations: s.conversations.map((c) =>
-                  c.id === conversationId
-                    ? { ...c, messages: [...c.messages, herMsg] }
-                    : c
-                ),
-              }));
-            }, delay);
+                set((s) => ({
+                  conversations: s.conversations.map((c) =>
+                    c.id === conversationId
+                      ? { ...c, messages: [...c.messages, herMsg] }
+                      : c
+                  ),
+                }));
+                sendNext(index + 1);
+              }, delay);
+            };
+            sendNext(0);
           } else if (conv.type === "group") {
-            const replyCount = Math.floor(Math.random() * 4) + 2;
+            const groupLo = Math.max(1, Math.min(12, groupReplyMin));
+            const groupHi = Math.max(groupLo, Math.min(12, groupReplyMax));
+            const replyCount = groupHi > groupLo
+              ? groupLo + Math.floor(Math.random() * (groupHi - groupLo + 1))
+              : groupLo;
             const sendNext = (index: number) => {
               if (index >= replyCount) return;
               const delay = randRange(replySpeedMin * 1000, replySpeedMax * 1000);
@@ -1985,7 +2058,7 @@ export const useAppStore = create<
                 const members = state.contacts.filter((c) => conv.memberIds.includes(c.id));
                 const randomMember = members[Math.floor(Math.random() * members.length)];
                 const card = state.pickRandomCard(randomMember.id, "chat");
-                if (!card) return;
+                if (!card) { sendNext(index + 1); return; }
 
                 const herMsg: Message = {
                   id: uid("her"),

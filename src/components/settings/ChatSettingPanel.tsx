@@ -121,6 +121,90 @@ export default function ChatSettingPanel() {
         )}
       </Section>
 
+      <Section title="已读不回">
+        <Toggle
+          label="开启后，你发出的消息有3%概率对方不回复，消息底标注「已读不回」"
+          checked={chat.readIgnoreEnabled}
+          onChange={(v) => setChat({ readIgnoreEnabled: v })}
+        />
+      </Section>
+
+      <Section title="私聊回复条数">
+        <div className="mb-2 text-[11px]" style={{ color: "var(--text-soft)" }}>
+          私聊中，对方每次回复你的消息条数：{chat.privateReplyMin} ~ {chat.privateReplyMax} 条
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] w-8" style={{ color: "var(--text-soft)" }}>
+            最少 {chat.privateReplyMin}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={12}
+            value={chat.privateReplyMin}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setChat({ privateReplyMin: v, privateReplyMax: Math.max(v, chat.privateReplyMax) });
+            }}
+            className="flex-1 accent-[var(--accent)]"
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-[11px] w-8" style={{ color: "var(--text-soft)" }}>
+            最多 {chat.privateReplyMax}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={12}
+            value={chat.privateReplyMax}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setChat({ privateReplyMax: v, privateReplyMin: Math.min(v, chat.privateReplyMin) });
+            }}
+            className="flex-1 accent-[var(--accent)]"
+          />
+        </div>
+      </Section>
+
+      <Section title="群聊回复条数">
+        <div className="mb-2 text-[11px]" style={{ color: "var(--text-soft)" }}>
+          群聊中，每次触发回复的总条数：{chat.groupReplyMin} ~ {chat.groupReplyMax} 条
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] w-8" style={{ color: "var(--text-soft)" }}>
+            最少 {chat.groupReplyMin}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={12}
+            value={chat.groupReplyMin}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setChat({ groupReplyMin: v, groupReplyMax: Math.max(v, chat.groupReplyMax) });
+            }}
+            className="flex-1 accent-[var(--accent)]"
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-[11px] w-8" style={{ color: "var(--text-soft)" }}>
+            最多 {chat.groupReplyMax}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={12}
+            value={chat.groupReplyMax}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setChat({ groupReplyMax: v, groupReplyMin: Math.min(v, chat.groupReplyMin) });
+            }}
+            className="flex-1 accent-[var(--accent)]"
+          />
+        </div>
+      </Section>
+
       <Section title="喝水提醒">
         <Toggle
           label="6% 概率随机提醒你喝水"

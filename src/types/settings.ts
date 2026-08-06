@@ -25,6 +25,11 @@ export interface ChatSettings {
   moodCardEnabled: boolean;
   waterReminder: boolean;
   pushNotification: boolean;
+  readIgnoreEnabled: boolean;
+  privateReplyMin: number;
+  privateReplyMax: number;
+  groupReplyMin: number;
+  groupReplyMax: number;
 }
 
 export const DEFAULT_BEAUTY: BeautySettings = {
@@ -52,6 +57,11 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   moodCardEnabled: true,
   waterReminder: true,
   pushNotification: true,
+  readIgnoreEnabled: true,
+  privateReplyMin: 2,
+  privateReplyMax: 5,
+  groupReplyMin: 2,
+  groupReplyMax: 5,
 };
 
 export const BUBBLE_STYLES = [

@@ -281,7 +281,7 @@ export default function ConvSwitchModal({ isOpen, onClose }: ConvSwitchModalProp
                           {conv.name}
                         </div>
                         <div className="text-xs" style={{ color: "var(--text-soft)" }}>
-                          私聊 · {contact?.avatar || "他"}
+                          私聊 · {conv.name || "他"}
                         </div>
                       </div>
                       {activeConversationId === conv.id && (
