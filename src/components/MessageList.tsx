@@ -505,6 +505,7 @@ export default function MessageList() {
                     renderTextWithMention={renderTextWithMention}
                     isNew={isNew}
                     showRead={m.sender === "me" && m.readStatus === "read"}
+                    showReadIgnored={m.sender === "me" && m.readStatus === "ignored"}
                   />
                 </div>
               </div>
@@ -822,12 +823,12 @@ function MessageAvatar({
         <div
           className="pointer-events-none absolute"
           style={{
-            top: "-11px",
+            top: "-8px",
             left: "50%",
             transform: "translateX(-50%)",
-            fontSize: "18px",
+            fontSize: "14px",
             lineHeight: 1,
-            letterSpacing: "-2px",
+            letterSpacing: "2px",
             color: "#E74C3C",
             textShadow: "0 1px 2px rgba(0,0,0,0.35)",
             fontWeight: 900,
@@ -1033,6 +1034,7 @@ function MessageBubble({
   renderTextWithMention,
   isNew,
   showRead,
+  showReadIgnored,
 }: {
   message: Message;
   side: "left" | "right";
@@ -1040,6 +1042,7 @@ function MessageBubble({
   renderTextWithMention: (text: string, mentionTarget?: string) => React.ReactNode;
   isNew: boolean;
   showRead?: boolean;
+  showReadIgnored?: boolean;
 }) {
   const isLeft = side === "left";
   const bgColor = isLeft ? "var(--her-card)" : "var(--my-bubble)";
@@ -1083,6 +1086,7 @@ function MessageBubble({
         <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}
           {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
         </span>
       </>
     );
@@ -1121,6 +1125,7 @@ function MessageBubble({
         <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}
           {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
         </span>
       </>
     );
@@ -1162,13 +1167,14 @@ function MessageBubble({
         <span className="mt-1 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
           {time}
           {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
         </span>
       </div>
     );
   }
 
   if (message.type === "survey" && message.survey) {
-    return <SurveyBubble message={message} time={time} bgColor={bgColor} showRead={showRead} />;
+    return <SurveyBubble message={message} time={time} bgColor={bgColor} showRead={showRead} showReadIgnored={showReadIgnored} />;
   }
 
   if (message.type === "shop" && message.shop) {
@@ -1197,7 +1203,8 @@ function MessageBubble({
             💬 留言：{shop.leaveMessage}
           </div>
         )}
-        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}</span>
+        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
       </div>
     );
   }
@@ -1244,7 +1251,8 @@ function MessageBubble({
           {isReturned && "已退回"}
           {isMine && !isClaimed && !isReturned && "等待中..."}
         </div>
-        <span className="mt-0.5 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 40%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}</span>
+        <span className="mt-0.5 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 40%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
       </div>
     );
   }
@@ -1291,12 +1299,13 @@ function MessageBubble({
       <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
         {time}
         {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
       </span>
     </>
   );
 }
 
-function SurveyBubble({ message, time, bgColor, showRead }: { message: Message; time: string; bgColor: string; showRead?: boolean }) {
+function SurveyBubble({ message, time, bgColor, showRead, showReadIgnored }: { message: Message; time: string; bgColor: string; showRead?: boolean; showReadIgnored?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const s = message.survey!;
   const isCompleted = !!s.answers;
@@ -1360,7 +1369,8 @@ function SurveyBubble({ message, time, bgColor, showRead }: { message: Message; 
         </div>
       )}
 
-      <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}</span>
+      <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
+          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
     </div>
   );
 }
@@ -1461,6 +1471,11 @@ function RPSBubble({
           {message.sender === "me" && message.readStatus === "read" && (
             <span className="text-[10px]" style={{ color: "var(--text-soft)" }}>
               已读
+            </span>
+          )}
+          {message.sender === "me" && message.readStatus === "ignored" && (
+            <span className="text-[10px]" style={{ color: "#ef4444" }}>
+              已读不回
             </span>
           )}
         </div>
@@ -1577,6 +1592,11 @@ function PollBubble({
           {message.sender === "me" && message.readStatus === "read" && (
             <span className="text-[10px]" style={{ color: "var(--text-soft)" }}>
               已读
+            </span>
+          )}
+          {message.sender === "me" && message.readStatus === "ignored" && (
+            <span className="text-[10px]" style={{ color: "#ef4444" }}>
+              已读不回
             </span>
           )}
         </div>
