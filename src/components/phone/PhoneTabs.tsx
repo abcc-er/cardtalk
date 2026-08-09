@@ -220,10 +220,9 @@ const ShopIcon = ({ color }: { color: string }) => (
 
 const StatementIcon = ({ color }: { color: string }) => (
   <svg viewBox="0 0 32 32" className="h-7 w-7">
-    <circle cx="16" cy="26" r="1.8" fill={color} opacity="0.3" />
-    <circle cx="16" cy="26" r="1.8" fill="none" stroke={color} strokeWidth="1.5" />
-    <path d="M15.3 7.2c0-1.2 1.4-1.2 1.4 0l0.6 12.6c0 1-1.4 1-2 0L15.3 7.2z" fill={color} opacity="0.2" />
-    <path d="M15.3 7.2c0-1.2 1.4-1.2 1.4 0l0.6 12.6c0 1-1.4 1-2 0L15.3 7.2z" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M16 6C13.5 4.5 10 4 6 4.5V25c4-0.5 7.5 0 10 1.5C18.5 25 22 24.5 26 25V4.5C22 4 18.5 4.5 16 6z" fill={color} opacity="0.15" />
+    <path d="M16 6C13.5 4.5 10 4 6 4.5V25c4-0.5 7.5 0 10 1.5C18.5 25 22 24.5 26 25V4.5C22 4 18.5 4.5 16 6z" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M16 6v20.5" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
@@ -243,7 +242,7 @@ const APPS: { id: PhoneAppId; name: string; Icon: (p: { color: string }) => JSX.
   { id: "survey", name: "问卷", Icon: SurveyIcon, color: "#9C6ADE" },
   { id: "shop", name: "商店", Icon: ShopIcon, color: "#FF8C42" },
   { id: "driftbottle", name: "漂流瓶", Icon: StarIcon, color: "#0066B3" },
-  { id: "statement", name: "声明", Icon: StatementIcon, color: "#FF5252" },
+  { id: "statement", name: "教程", Icon: StatementIcon, color: "#FF5252" },
 ];
 
 export default function PhoneTabs() {

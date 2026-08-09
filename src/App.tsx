@@ -7,6 +7,7 @@ import FloatingMusic from "@/components/FloatingMusic";
 import MusicPlayerModal from "@/components/MusicPlayerModal";
 import DriftBottleModal from "@/components/modals/DriftBottleModal";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import MsgNotificationToasts from "@/components/MsgNotificationToasts";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/app";
 
@@ -125,6 +126,56 @@ export default function App() {
     return unsubscribe;
   }, [notificationGranted, beauty.herName, pushNotification]);
 
+  // ========== 新消息：浮窗 + 音效触发（全局统一入口） ==========
+  useEffect(() => {
+    // 记录脚本启动时间戳：只有晚于这一刻的消息才算"页面运行期间新到的消息"
+    // 页面启动瞬间之前的消息（包括刚从 localStorage 恢复的历史）都不弹不响
+    const SESSION_START_TS = Date.now();
+    // 会话启动时已经存在的消息 id 集合（完全不提醒）
+    const baselineMsgIds = new Set<string>();
+    const initState = useAppStore.getState();
+    initState.conversations.forEach((c) => c.messages.forEach((m) => baselineMsgIds.add(m.id)));
+    let countMap: Record<string, number> = { ...(initState._notifMsgCountMap || {}) };
+    // 首次把基线长度写回去，避免首帧 subscribe 就比大小
+    initState.conversations.forEach((c) => { countMap[c.id] = c.messages.length; });
+    try { useAppStore.setState({ _notifMsgCountMap: countMap } as any); } catch { /* noop */ }
+
+    const handleNewMessages = () => {
+      const s = useAppStore.getState();
+      const prevMap = s._notifMsgCountMap || {};
+      const nextMap: Record<string, number> = { ...prevMap };
+      let changed = false;
+      for (const conv of s.conversations) {
+        const prev = prevMap[conv.id] ?? 0;
+        const next = conv.messages.length;
+        if (next <= prev) {
+          if ((nextMap[conv.id] ?? 0) !== next) { nextMap[conv.id] = next; changed = true; }
+          continue;
+        }
+        for (let i = prev; i < next; i++) {
+          const msg = conv.messages[i];
+          if (!msg) continue;
+          // 三重过滤，避免旧消息 / 已读消息 / 我发的消息 弹窗和响铃：
+          // 1) 页面启动前已存在的 id -> 跳过
+          if (baselineMsgIds.has(msg.id)) continue;
+          // 2) 时间戳在会话启动之前（比如持久化刚恢复）-> 跳过
+          if (msg.timestamp < SESSION_START_TS) continue;
+          // 3) 已经标记已读（比如对方回复的消息在写进来时就 readStatus: read）-> 跳过
+          if (msg.readStatus === "read" || msg.readStatus === "ignored") continue;
+          s.onIncomingMessage(conv.id, msg);
+        }
+        nextMap[conv.id] = next;
+        changed = true;
+      }
+      if (changed) {
+        try { useAppStore.setState({ _notifMsgCountMap: nextMap } as any); } catch { /* noop */ }
+      }
+    };
+
+    const unsubscribe = useAppStore.subscribe(handleNewMessages);
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     // 预加载本地资源（漂流瓶等）
     DRIFT_BOTTLE_IMAGES.forEach((path) => {
@@ -235,6 +286,9 @@ export default function App() {
       </ErrorBoundary>
       <ErrorBoundary fallback={<></>}>
         <DriftBottleModal />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={<></>}>
+        <MsgNotificationToasts />
       </ErrorBoundary>
     </>
   );

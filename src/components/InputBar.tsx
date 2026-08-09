@@ -1,4 +1,4 @@
-import { useState, useRef, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, type KeyboardEvent } from "react";
 import { Send, Smile, X, ImageIcon, Gift } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { compressImage } from "@/lib/utils";
@@ -17,11 +17,20 @@ export default function InputBar() {
   const [showRedpacket, setShowRedpacket] = useState(false);
   const [rpAmount, setRpAmount] = useState("");
   const [rpMessage, setRpMessage] = useState("");
+  const [rpCount, setRpCount] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
   const isGroup = activeConv?.type === "group";
   const quotedMsg = quotingMessageId ? activeConv?.messages.find((m) => m.id === quotingMessageId) : null;
+
+  useEffect(() => {
+    if (isGroup && activeConv) {
+      setRpCount(String(activeConv.memberIds.length || 1));
+    } else {
+      setRpCount("");
+    }
+  }, [isGroup, activeConv?.id]);
 
   const onSend = () => {
     if (!text.trim() || !activeConv) return;
@@ -58,9 +67,11 @@ export default function InputBar() {
   const onSendRedpacket = () => {
     const amount = parseFloat(rpAmount);
     if (isNaN(amount) || amount <= 0 || !activeConv) return;
-    sendRedpacket(activeConv.id, amount, rpMessage.trim() || undefined);
+    const count = rpCount.trim() ? parseInt(rpCount) : undefined;
+    (sendRedpacket as any)(activeConv.id, amount, rpMessage.trim() || undefined, count);
     setRpAmount("");
     setRpMessage("");
+    setRpCount("");
     setShowRedpacket(false);
   };
 
@@ -96,9 +107,21 @@ export default function InputBar() {
             <div className="text-[11px] font-semibold" style={{ color: "var(--accent)" }}>
               {quotedMsg.sender === "me" ? "我" : "对方"}
             </div>
-            <div className="truncate text-[13px] leading-snug" style={{ color: "var(--text)" }}>
-              {quotedMsg.text || (quotedMsg.sticker ? "[表情包]" : quotedMsg.image ? "[图片]" : "")}
-            </div>
+            {quotedMsg.sticker ? (
+              <div className="flex items-center gap-2 text-[13px] leading-snug" style={{ color: "var(--text)" }}>
+                <img src={quotedMsg.sticker} className="h-8 w-8 rounded object-contain border" draggable={false} style={{ borderColor: "var(--card-border)" }} />
+                <span style={{ color: "var(--text-soft)" }}>{quotedMsg.sender === "me" ? "我的表情包" : "对方的表情包"}</span>
+              </div>
+            ) : quotedMsg.image ? (
+              <div className="flex items-center gap-2 text-[13px] leading-snug" style={{ color: "var(--text)" }}>
+                <img src={quotedMsg.image} className="h-8 w-8 rounded object-cover border" draggable={false} style={{ borderColor: "var(--card-border)" }} />
+                <span style={{ color: "var(--text-soft)" }}>{quotedMsg.sender === "me" ? "我的图片" : "对方的图片"}</span>
+              </div>
+            ) : (
+              <div className="truncate text-[13px] leading-snug" style={{ color: "var(--text)" }}>
+                {quotedMsg.text || "[消息]"}
+              </div>
+            )}
           </div>
           <button
             onClick={() => useAppStore.setState({ quotingMessageId: null })}
@@ -199,6 +222,20 @@ export default function InputBar() {
                 color: "var(--text)",
               }}
             />
+            {isGroup && (
+              <input
+                value={rpCount}
+                onChange={(e) => setRpCount(e.target.value)}
+                type="number"
+                placeholder="领取人数（默认群人数）"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{
+                  borderColor: "var(--card-border)",
+                  background: "var(--card)",
+                  color: "var(--text)",
+                }}
+              />
+            )}
             <input
               value={rpMessage}
               onChange={(e) => setRpMessage(e.target.value)}

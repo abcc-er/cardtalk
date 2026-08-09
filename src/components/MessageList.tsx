@@ -85,11 +85,18 @@ export default function MessageList() {
   const petHidingMode = useAppStore((s) => s.petHidingMode);
   const setPetHidingMode = useAppStore((s) => s.setPetHidingMode);
   const hidePetAtMessage = useAppStore((s) => s.hidePetAtMessage);
+  const readBadgeEnabled = useAppStore((s) => s.chat.readBadgeEnabled);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number; sender: string } | null>(null);
   const [tomatoPicker, setTomatoPicker] = useState<{ senderId: string; msgId: string; x: number; y: number } | null>(null);
   const [tomatoMsgCollapsed, setTomatoMsgCollapsed] = useState(true);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 领取弹窗状态（store 管理，便于在任意层级打开）
+  const rpClaimModal = useAppStore((s) => s.rpClaimModal);
+  const setRpClaimModal = useAppStore((s) => s.setRpClaimModal);
+  const giftClaimModal = useAppStore((s) => s.giftClaimModal);
+  const setGiftClaimModal = useAppStore((s) => s.setGiftClaimModal);
 
 
   const conv = useMemo(
@@ -297,13 +304,14 @@ export default function MessageList() {
 
   // 找出「我」发的最新一条 readStatus === "ignored" 的消息 id：只在这一条的头像上标红 ^^
   const latestMineIgnoredMsgId = React.useMemo(() => {
+    if (!readBadgeEnabled) return null;
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (!m || m.type === "system" || m.recalled) continue;
       if (m.sender === "me" && m.readStatus === "ignored") return m.id;
     }
     return null;
-  }, [messages]);
+  }, [messages, readBadgeEnabled]);
 
   return (
     <div
@@ -390,6 +398,8 @@ export default function MessageList() {
                   getAvatarImage={getAvatarImage}
                   bubbleStyle={bubbleStyle}
                   showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
+                  showRead={readBadgeEnabled && m.sender === "me" && m.readStatus === "read"}
+                  showReadIgnored={readBadgeEnabled && m.sender === "me" && m.readStatus === "ignored"}
                 />
               </div>
             );
@@ -406,6 +416,8 @@ export default function MessageList() {
                   getAvatarImage={getAvatarImage}
                   bubbleStyle={bubbleStyle}
                   showReadIgnoredBadge={m.sender === "me" && latestMineIgnoredMsgId === m.id}
+                  showRead={readBadgeEnabled && m.sender === "me" && m.readStatus === "read"}
+                  showReadIgnored={readBadgeEnabled && m.sender === "me" && m.readStatus === "ignored"}
                 />
               </div>
             );
@@ -465,7 +477,7 @@ export default function MessageList() {
               >
                 {isLeft && m.sender !== "me" && (
                   <span
-                    className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1 relative z-10"
+                    className="mb-0.5 px-1 text-xs cursor-pointer select-none active:opacity-60 flex items-center gap-1.5 relative z-10"
                     style={{ color: "color-mix(in srgb, var(--text) 60%, transparent)" }}
                     onDoubleClick={(e) => showTomatoPicker(m.sender, m.id, e.clientX, e.clientY)}
                     title="双击扔番茄"
@@ -473,7 +485,15 @@ export default function MessageList() {
                     {m.isAutoInitiated && (
                       <span className="text-[#FFB347]" style={{ fontSize: "10px" }}>⭐</span>
                     )}
-                    {getContactName(m.sender)}
+                    <span className="font-medium" style={{ color: "color-mix(in srgb, var(--text) 78%, transparent)" }}>
+                      {getContactName(m.sender)}
+                    </span>
+                    <span
+                      className="text-[10px]"
+                      style={{ color: "color-mix(in srgb, var(--text) 45%, transparent)" }}
+                    >
+                      {new Date(m.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </span>
                 )}
                 {/* 我方消息无昵称，用占位撑出与对方一致的顶部偏移 */}
@@ -504,8 +524,8 @@ export default function MessageList() {
                     bubbleStyle={bubbleStyle}
                     renderTextWithMention={renderTextWithMention}
                     isNew={isNew}
-                    showRead={m.sender === "me" && m.readStatus === "read"}
-                    showReadIgnored={m.sender === "me" && m.readStatus === "ignored"}
+                    showRead={readBadgeEnabled && m.sender === "me" && m.readStatus === "read"}
+                    showReadIgnored={readBadgeEnabled && m.sender === "me" && m.readStatus === "ignored"}
                   />
                 </div>
               </div>
@@ -627,6 +647,185 @@ export default function MessageList() {
       {tomatoThrows.filter((t) => t.conversationId === activeConversationId).map((tomato) => (
         <TomatoAnimation key={tomato.id} tomato={tomato} messages={messages} view={view} />
       ))}
+
+      {/* ================ 领取私聊红包 弹窗（简约线条风格） ================ */}
+      {rpClaimModal && (() => {
+        const conv = conversations.find((c) => c.id === rpClaimModal.conversationId);
+        const msg = conv?.messages.find((m) => m.id === rpClaimModal.messageId);
+        const rp = msg?.redpacket;
+        const claimRedpacket = useAppStore.getState().claimRedpacket;
+        const returnRedpacket = useAppStore.getState().returnRedpacket;
+        const myNameNow = useAppStore.getState().beauty.myName || "我";
+        const senderName = msg?.sender === "me" ? myNameNow : (contacts.find((c) => c.id === msg?.sender)?.name || "对方");
+        if (!rp) return null;
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center"
+            style={{ background: "color-mix(in srgb, #000 35%, transparent)" }}
+            onClick={() => setRpClaimModal(null)}
+          >
+            <div
+              className="animate-bubbleIn w-[80%] max-w-[320px] rounded-2xl p-5"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--card-border)",
+                boxShadow: "0 12px 40px color-mix(in srgb, #000 25%, transparent)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 信封/红包线条图 */}
+              <div className="flex justify-center mb-4">
+                <div
+                  className="rounded-2xl border-2 border-dashed p-4"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)",
+                    background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+                  }}
+                >
+                  <svg width="64" height="64" viewBox="0 0 80 80" fill="none">
+                    <rect x="8" y="12" width="64" height="56" rx="6" stroke="var(--accent)" strokeWidth="2" />
+                    <path d="M8 28 H72" stroke="var(--accent)" strokeWidth="2" />
+                    <path d="M40 12 C 28 20, 28 28, 40 36 C 52 28, 52 20, 40 12 Z" fill="color-mix(in srgb, var(--accent) 25%, transparent)" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+                    <circle cx="40" cy="44" r="4" fill="var(--accent)" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-center text-[13px]" style={{ color: "var(--text-soft)" }}>
+                {senderName} 给你发了一个红包
+              </div>
+              <div className="mt-1 text-center text-[28px] font-bold leading-none" style={{ color: "var(--accent)" }}>
+                ¥{rp.amount.toFixed(2)}
+              </div>
+              {rp.message && (
+                <div className="mt-2 text-center text-[12px] rounded-lg border border-dashed px-2.5 py-1.5" style={{ color: "var(--text-soft)", borderColor: "color-mix(in srgb, var(--card-border) 70%, transparent)" }}>
+                  “{rp.message}”
+                </div>
+              )}
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => {
+                    returnRedpacket(rpClaimModal.conversationId, rpClaimModal.messageId);
+                    setRpClaimModal(null);
+                  }}
+                  className="rounded-xl border-2 border-dashed py-2.5 text-[13px] font-medium transition active:scale-95 hover:opacity-90"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--text-soft) 50%, var(--card-border))",
+                    color: "var(--text-soft)",
+                    background: "color-mix(in srgb, var(--text-soft) 6%, var(--card))",
+                  }}
+                >
+                  ↩ 不收，退回
+                </button>
+                <button
+                  onClick={() => {
+                    claimRedpacket(rpClaimModal.conversationId, rpClaimModal.messageId);
+                    setRpClaimModal(null);
+                  }}
+                  className="rounded-xl border-2 border-dashed py-2.5 text-[13px] font-semibold transition active:scale-95 hover:opacity-90"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--accent) 55%, var(--card-border))",
+                    color: "var(--accent)",
+                    background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                  }}
+                >
+                  🧧 领取红包
+                </button>
+              </div>
+              <button
+                onClick={() => setRpClaimModal(null)}
+                className="mt-3 w-full text-[11px] transition hover:opacity-70"
+                style={{ color: "var(--text-soft)" }}
+              >
+                稍后再领
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ================ 领取对方送的礼物 弹窗（简约线条风格） ================ */}
+      {giftClaimModal && (() => {
+        const conv = conversations.find((c) => c.id === giftClaimModal.conversationId);
+        const msg = conv?.messages.find((m) => m.id === giftClaimModal.messageId);
+        const shop = msg?.shop;
+        const claimGift = useAppStore.getState().claimGift;
+        const myNameNow = useAppStore.getState().beauty.myName || "我";
+        const senderName = msg?.sender === "me" ? myNameNow : (contacts.find((c) => c.id === msg?.sender)?.name || "对方");
+        if (!shop) return null;
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center"
+            style={{ background: "color-mix(in srgb, #000 35%, transparent)" }}
+            onClick={() => setGiftClaimModal(null)}
+          >
+            <div
+              className="animate-bubbleIn w-[80%] max-w-[320px] rounded-2xl p-5"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--card-border)",
+                boxShadow: "0 12px 40px color-mix(in srgb, #000 25%, transparent)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center mb-4">
+                <div
+                  className="rounded-2xl border-2 border-dashed p-4"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)",
+                    background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+                  }}
+                >
+                  <svg width="64" height="64" viewBox="0 0 80 80" fill="none">
+                    <rect x="10" y="28" width="60" height="42" rx="5" stroke="var(--accent)" strokeWidth="2" />
+                    <rect x="10" y="28" width="60" height="14" stroke="var(--accent)" strokeWidth="2" />
+                    <path d="M40 28 L40 70" stroke="var(--accent)" strokeWidth="2" />
+                    <path d="M22 28 C 22 10, 36 12, 40 26 C 44 12, 58 10, 58 28" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" fill="none" />
+                    <circle cx="40" cy="28" r="3.5" fill="var(--accent)" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-center text-[13px]" style={{ color: "var(--text-soft)" }}>
+                {senderName} 送给你一份礼物
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-2" style={{ borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)" }}>
+                <span className="text-2xl">{shop.emoji}</span>
+                <div>
+                  <div className="text-[15px] font-semibold text-center" style={{ color: "var(--text)" }}>{shop.productName}</div>
+                  <div className="text-[12px] text-center" style={{ color: "var(--text-soft)" }}>价值 ¥{shop.price}</div>
+                </div>
+              </div>
+              {shop.leaveMessage && (
+                <div className="mt-2 text-center text-[12px] rounded-lg border border-dashed px-2.5 py-1.5" style={{ color: "var(--text-soft)", borderColor: "color-mix(in srgb, var(--card-border) 70%, transparent)" }}>
+                  💬 {shop.leaveMessage}
+                </div>
+              )}
+              <div className="mt-5 grid grid-cols-1 gap-2.5">
+                <button
+                  onClick={() => {
+                    claimGift(giftClaimModal.conversationId, giftClaimModal.messageId);
+                    setGiftClaimModal(null);
+                  }}
+                  className="rounded-xl border-2 border-dashed py-3 text-[14px] font-semibold transition active:scale-95 hover:opacity-90"
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--accent) 55%, var(--card-border))",
+                    color: "var(--accent)",
+                    background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                  }}
+                >
+                  🎁 开心收下并致谢
+                </button>
+              </div>
+              <button
+                onClick={() => setGiftClaimModal(null)}
+                className="mt-3 w-full text-[11px] transition hover:opacity-70"
+                style={{ color: "var(--text-soft)" }}
+              >
+                稍后再说
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1045,6 +1244,7 @@ function MessageBubble({
   showReadIgnored?: boolean;
 }) {
   const isLeft = side === "left";
+  const isMine = message.sender === "me";
   const bgColor = isLeft ? "var(--her-card)" : "var(--my-bubble)";
   const textColor = isLeft ? "var(--text)" : "var(--my-bubble-text)";
   const isCuteMoe = useAppStore((s) => s.beauty.themeId) === "cute-moe";
@@ -1053,11 +1253,75 @@ function MessageBubble({
   const setMusicPlaying = useAppStore((s) => s.setMusicPlaying);
   const setMusicFullScreen = useAppStore((s) => s.setMusicFullScreen);
   const claimRedpacket = useAppStore((s) => s.claimRedpacket);
+  const setRpClaimModal = useAppStore((s) => s.setRpClaimModal);
+  const setGiftClaimModal = useAppStore((s) => s.setGiftClaimModal);
   const activeConversationId = useAppStore((s) => s.activeConversationId);
+  const conversations = useAppStore((s) => s.conversations);
+  const contacts = useAppStore((s) => s.contacts);
+  const myName = useAppStore((s) => s.beauty.myName);
+  const conv = useMemo(() => conversations.find((c) => c.id === activeConversationId), [conversations, activeConversationId]);
   const time = new Date(message.timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const getContactNameInner = (senderId: string): string => {
+    if (senderId === "me") return myName;
+    const contact = contacts.find((c) => c.id === senderId);
+    return contact?.name || "未知";
+  };
+
+  const timeRowClass = `mt-0.5 w-full flex gap-1 text-[10px] px-1 ${isMine ? "justify-start" : "justify-end"}`;
+  const timeColor = { color: "color-mix(in srgb, var(--text) 50%, transparent)" };
+  const toggleEnvelope = useAppStore((s) => s.toggleEnvelope);
+
+  // 对方主动写信 -> 信封简笔画样式包裹
+  const isLetter = !isMine && !!message.isAutoInitiated;
+  const letterOpened = !!message.envelopeOpened;
+  if (isLetter && !letterOpened) {
+    return (
+      <button
+        onClick={() => toggleEnvelope(activeConversationId, message.id)}
+        className="group animate-bubbleIn rounded-xl border-2 border-dashed px-4 py-5 text-left transition active:scale-[0.98] hover:opacity-95"
+        style={{
+          borderColor: "color-mix(in srgb, var(--accent) 55%, var(--card-border))",
+          background: "color-mix(in srgb, var(--accent) 6%, var(--card))",
+          minWidth: "200px",
+          maxWidth: "260px",
+        }}
+        aria-label="打开信封"
+      >
+        {/* 信封简笔画线条 SVG */}
+        <div className="relative mx-auto mb-3 h-20 w-32">
+          <svg viewBox="0 0 200 130" className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* 信封外框 */}
+            <rect x="4" y="28" width="192" height="96" rx="6" stroke="var(--accent)" strokeWidth="2.2" />
+            {/* 信封翻盖（倒三角） */}
+            <path d="M4 32 L100 92 L196 32" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round" fill="none" />
+            {/* 翻盖内层点缀 */}
+            <path d="M20 34 L100 82 L180 34" stroke="color-mix(in srgb, var(--accent) 50%, transparent)" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+            {/* 火漆/封口小爱心 */}
+            <circle cx="100" cy="74" r="9" fill="none" stroke="var(--accent)" strokeWidth="1.8" />
+            <path d="M100 77 C 96 73, 92 75, 92 79 C 92 83, 100 86, 100 86 C 100 86, 108 83, 108 79 C 108 75, 104 73, 100 77 Z"
+                  fill="color-mix(in srgb, var(--accent) 70%, transparent)"
+                  stroke="none" />
+            {/* 边角装饰 */}
+            <path d="M10 118 L24 118 M10 122 L18 122" stroke="color-mix(in srgb, var(--accent) 40%, transparent)" strokeWidth="1.4" strokeLinecap="round" />
+            <path d="M190 118 L176 118 M190 122 L182 122" stroke="color-mix(in srgb, var(--accent) 40%, transparent)" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div className="text-center text-[13px] font-semibold" style={{ color: "var(--accent)" }}>
+          ✉️ 对方给我写了一封信
+        </div>
+        <div className="mt-1 text-center text-[11px]" style={{ color: "var(--text-soft)" }}>
+          点击即可查看内容
+        </div>
+        <div className={timeRowClass} style={{ ...timeColor, marginTop: "12px" }}>
+          <span>{time}</span>
+        </div>
+      </button>
+    );
+  }
 
   const handlePlayMusic = () => {
     if (!message.music) return;
@@ -1083,11 +1347,11 @@ function MessageBubble({
             display: "block",
           }}
         />
-        <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-          {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
-        </span>
+        <div className={timeRowClass} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+        </div>
       </>
     );
   }
@@ -1122,11 +1386,11 @@ function MessageBubble({
             [表情包]
           </div>
         )}
-        <span className="mt-1 px-1 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-          {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
-        </span>
+        <div className={timeRowClass} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+        </div>
       </>
     );
   }
@@ -1164,33 +1428,82 @@ function MessageBubble({
             </div>
           </div>
         </div>
-        <span className="mt-1 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {time}
-          {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
-        </span>
+        <div className={timeRowClass} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+        </div>
       </div>
     );
   }
 
   if (message.type === "survey" && message.survey) {
-    return <SurveyBubble message={message} time={time} bgColor={bgColor} showRead={showRead} showReadIgnored={showReadIgnored} />;
+    return <SurveyBubble message={message} time={time} bgColor={bgColor} showRead={showRead} showReadIgnored={showReadIgnored} isMine={isMine} />;
   }
 
   if (message.type === "shop" && message.shop) {
     const shop = message.shop;
+    // 对方送我的礼物（sender != me 且 action 为 bought 或 recommend）：显示「待领取」样式，点击弹领取确认
+    const isGiftForMe = !isMine && (shop.action === "bought" || shop.action === "recommend");
+    const canClaimGift = isGiftForMe && !(message as any).giftClaimed;
     return (
-      <div className="animate-bubbleIn rounded-2xl border p-3" style={{ background: bgColor, borderColor: "color-mix(in srgb, var(--card-border) 50%, transparent)", minWidth: "180px" }}>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{shop.emoji}</span>
-          <div className="flex-1">
-            <div className="text-sm font-medium" style={{ color: "var(--text)" }}>{shop.productName}</div>
-            <div className="text-[12px]" style={{ color: "color-mix(in srgb, var(--text) 55%, transparent)" }}>¥{shop.price}</div>
+      <div
+        className={`animate-bubbleIn rounded-2xl border p-3 ${canClaimGift ? "cursor-pointer active:scale-[0.98]" : ""}`}
+        style={{
+          background: bgColor,
+          borderColor: canClaimGift
+            ? "color-mix(in srgb, var(--accent) 45%, var(--card-border))"
+            : "color-mix(in srgb, var(--card-border) 50%, transparent)",
+          minWidth: "190px",
+          maxWidth: "260px",
+        }}
+        onClick={() => {
+          if (!canClaimGift) return;
+          setGiftClaimModal({ conversationId: activeConversationId, messageId: message.id });
+        }}
+      >
+        {/* 简约线条礼物盒图标 */}
+        <div className="flex items-start gap-2.5">
+          <div
+            className="shrink-0 rounded-lg border-2 border-dashed px-2 py-2"
+            style={{
+              borderColor: "color-mix(in srgb, var(--accent) 60%, transparent)",
+              background: "color-mix(in srgb, var(--accent) 6%, transparent)",
+            }}
+          >
+            <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+              <rect x="6" y="16" width="36" height="26" rx="3" stroke="var(--accent)" strokeWidth="2" />
+              <rect x="6" y="16" width="36" height="8" stroke="var(--accent)" strokeWidth="2" />
+              <path d="M24 16 L24 42" stroke="var(--accent)" strokeWidth="2" />
+              <path d="M14 16 C 14 6, 22 6, 24 14 C 26 6, 34 6, 34 16" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <circle cx="24" cy="16" r="2.2" fill="var(--accent)" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+              {isMine ? "已送出礼物" : "🎁 对方送我一份礼物"}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="text-lg leading-none">{shop.emoji}</span>
+              <span className="text-[13px] font-medium truncate" style={{ color: "var(--text)" }}>
+                {shop.productName}
+              </span>
+            </div>
+            <div className="mt-0.5 text-[11px]" style={{ color: "color-mix(in srgb, var(--text) 55%, transparent)" }}>
+              价值 ¥{shop.price}
+            </div>
           </div>
         </div>
-        <div className="mt-1.5 text-[11px]" style={{ color: shop.action === "recommend" ? "var(--accent)" : shop.action === "bought" ? "#4CAF50" : "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-          {shop.action === "recommend" ? "💡 推荐给你，要买吗？" : shop.action === "bought" ? "✅ 已帮你购买！" : "🛒 求购买"}
-        </div>
+        {canClaimGift && (
+          <div className="mt-2 rounded-lg border border-dashed px-2 py-1.5 text-center text-[12px]" style={{ borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)", color: "var(--accent)" }}>
+            ✨ 点击查看并领取
+          </div>
+        )}
+        {!canClaimGift && isGiftForMe && (
+          <div className="mt-2 text-[11px] text-center" style={{ color: "#4CAF50" }}>
+            ✓ 已领取
+          </div>
+        )}
         {shop.leaveMessage && (
           <div
             className="mt-1.5 rounded-lg border px-2 py-1 text-[11px]"
@@ -1203,63 +1516,330 @@ function MessageBubble({
             💬 留言：{shop.leaveMessage}
           </div>
         )}
-        <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
+        <div className={timeRowClass.replace("px-1", "px-0")} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+        </div>
       </div>
     );
   }
 
   if (message.type === "redpacket" && message.redpacket) {
-    const rp = message.redpacket;
+    const rp = message.redpacket as any;
+    const isGroupRp = !!rp.isGroup;
+    const count = rp.count ?? 1;
+    const claims: { contactId: string; name?: string; amount: number; comment?: string; isBest?: boolean; at?: number; commentAt?: number }[] = rp.claims ?? [];
+    // 只有 amount>0 才算真正抢到
+    const realClaims = claims.filter((c) => c.amount > 0);
+    const claimedCount = realClaims.length;
+    const allClaimed = claimedCount >= count;
+    let kingId: string | null = null;
+    let kingAmount = 0;
+    for (const c of realClaims) {
+      if (c.amount > kingAmount) {
+        kingAmount = c.amount;
+        kingId = c.contactId;
+      }
+    }
+    const meClaimed = realClaims.some((c) => c.contactId === "me");
+    const canClaimGroup = isGroupRp && !meClaimed && claimedCount < count && message.sender !== "me";
+    // 手气红包折叠：评论区 & 抢包记录可折叠/展开
+    const [rpCollapsed, setRpCollapsed] = useState(false);
+
     const isMine = message.sender === "me";
-    const canClaim = !rp.claimed && !rp.returned && !isMine;
+    const canClaimPrivate = !isGroupRp && !rp.claimed && !rp.returned && !isMine;
     const isReturned = !!rp.returned;
-    const isClaimed = !!rp.claimed;
+    const isClaimedPrivate = !isGroupRp && !!rp.claimed;
+
+    const bgStyle = isReturned
+      ? "color-mix(in srgb, var(--text-soft) 10%, var(--card))"
+      : (isClaimedPrivate || (isGroupRp && allClaimed))
+      ? "color-mix(in srgb, var(--accent) 8%, var(--card))"
+      : "var(--card)";
+
+    // 头像获取工具（复用 MessageList 里的 getAvatarText / Image，找不到就 fallback 到首字）
+    const getClaimAvatarText = (cid: string) => {
+      if (cid === "me") return myName?.slice?.(0, 1) || "我";
+      const contact = contacts.find((c) => c.id === cid);
+      return contact?.avatar?.slice?.(0, 1) || contact?.name?.slice?.(0, 1) || "?";
+    };
+    const getClaimAvatarImage = (cid: string) => {
+      if (cid === "me") return "";
+      return contacts.find((c) => c.id === cid)?.avatarImage || "";
+    };
+    const getClaimName = (cid: string) => cid === "me" ? myName : getContactNameInner(cid);
+
+    const openRpOrClaim = () => {
+      if (isGroupRp) {
+        if (canClaimGroup) claimRedpacket(activeConversationId, message.id);
+        // 已领完或已抢：点击不做额外动作（仅展示）
+      } else {
+        if (canClaimPrivate) setRpClaimModal({ conversationId: activeConversationId, messageId: message.id });
+      }
+    };
+
     return (
       <div
-        className={`animate-bubbleIn rounded-xl px-3 py-2.5 ${canClaim ? "cursor-pointer active:scale-95" : ""}`}
+        className={`animate-bubbleIn rounded-2xl px-3 py-2.5 ${(canClaimPrivate || canClaimGroup) ? "cursor-pointer active:scale-[0.98]" : ""}`}
         style={{
-          background: isReturned ? "color-mix(in srgb, var(--text-soft) 10%, var(--card))" : isClaimed ? "color-mix(in srgb, var(--accent) 8%, var(--card))" : "var(--card)",
+          background: bgStyle,
           border: "1px solid color-mix(in srgb, var(--accent) 20%, var(--card-border))",
-          minWidth: "140px",
-          maxWidth: "200px",
+          minWidth: isGroupRp ? "260px" : "160px",
+          maxWidth: isGroupRp ? "320px" : "230px",
           transition: "transform 0.15s",
+          boxShadow: "0 1px 0 color-mix(in srgb, var(--text) 3%, transparent)",
         }}
-        onClick={canClaim ? () => claimRedpacket(activeConversationId, message.id) : undefined}
+        onClick={openRpOrClaim}
       >
-        <div className="flex items-center gap-1.5">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isReturned ? "var(--text-soft)" : "var(--accent)"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            {isReturned ? (
-              <><path d="M9 14l-4-4 4-4" /><path d="M20 20v-7a4 4 0 00-4-4H5" /></>
-            ) : (
-              <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M4 9h16" /><circle cx="12" cy="14" r="2.5" /></>
+        {/* =============== 顶部红包卡（微信风格） =============== */}
+        <div
+          className="rounded-xl px-3 py-3 flex items-center gap-3"
+          style={{
+            background: isReturned
+              ? "color-mix(in srgb, var(--text-soft) 12%, transparent)"
+              : "linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 8%, transparent))",
+            border: "1px dashed color-mix(in srgb, var(--accent) 35%, transparent)",
+          }}
+        >
+          {/* 线条风红包图标 */}
+          <div
+            className="shrink-0 h-11 w-11 flex items-center justify-center rounded-lg"
+            style={{
+              background: "color-mix(in srgb, var(--accent) 15%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+            }}
+          >
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <rect x="5" y="6" width="30" height="28" rx="3" stroke="var(--accent)" strokeWidth="2" />
+              <path d="M5 14 H35" stroke="var(--accent)" strokeWidth="2" />
+              <path d="M20 6 C 13 10, 13 14, 20 18 C 27 14, 27 10, 20 6 Z" fill="color-mix(in srgb, var(--accent) 25%, transparent)" stroke="var(--accent)" strokeWidth="1.8" strokeLinejoin="round" />
+              <circle cx="20" cy="21.5" r="2.2" fill="var(--accent)" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[14px] font-semibold leading-tight" style={{ color: "var(--text)" }}>
+              {isReturned ? "红包已退回" : isGroupRp ? "🧧 手气红包" : "🧧 恭喜发财"}
+            </div>
+            {rp.message && !isReturned && (
+              <div className="mt-0.5 text-[11px] truncate" style={{ color: "var(--text-soft)" }}>
+                {rp.message}
+              </div>
             )}
-          </svg>
-          <span className="text-[13px] font-medium" style={{ color: "var(--text)" }}>
-            {isReturned ? "红包退回" : "红包"}
-          </span>
-          <span className="ml-auto text-[15px] font-bold" style={{ color: isReturned ? "var(--text-soft)" : "var(--accent)" }}>
-            ¥{rp.amount}
-          </span>
+            <div className="mt-1 text-[11px]" style={{ color: "var(--text-soft)" }}>
+              {isGroupRp
+                ? `${claimedCount}/${count} 个已被领取`
+                : (isReturned ? "已退回" : isClaimedPrivate ? "已领取 ✓" : isMine ? "等待对方处理..." : "✨ 点击领取 / 退回")}
+            </div>
+          </div>
+          <div
+            className="shrink-0 text-right"
+            style={{ color: isReturned ? "var(--text-soft)" : "var(--accent)" }}
+          >
+            {isGroupRp ? (
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-[17px] font-bold leading-none">¥{rp.totalAmount ?? rp.amount}</div>
+                  <div className="mt-1 text-[10px]" style={{ color: "var(--text-soft)" }}>总金额</div>
+                </div>
+                {/* 群聊红包折叠/展开按钮（独立，不影响抢红包点击） */}
+                <button
+                  type="button"
+                  className="h-7 w-7 flex items-center justify-center rounded-lg shrink-0 transition-transform"
+                  style={{
+                    transform: rpCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+                    background: "color-mix(in srgb, var(--accent) 15%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+                    color: "var(--accent)",
+                  }}
+                  title={rpCollapsed ? "展开抢包记录" : "折叠抢包记录"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRpCollapsed((v) => !v);
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="text-[17px] font-bold leading-none">¥{rp.amount}</div>
+              </div>
+            )}
+          </div>
         </div>
-        {rp.message && !isReturned && (
-          <div className="mt-0.5 text-[11px]" style={{ color: "var(--text-soft)" }}>{rp.message}</div>
+
+        {/* =============== 手气王仪式感标签 =============== */}
+        {isGroupRp && allClaimed && kingId && (
+          <div
+            className="mt-2 rounded-full px-2.5 py-1 inline-flex items-center gap-1 text-[11px] font-medium"
+            style={{
+              background: "linear-gradient(90deg, color-mix(in srgb, var(--accent) 25%, transparent), color-mix(in srgb, #F5C16B 45%, transparent))",
+              color: "color-mix(in srgb, #B8860B 85%, var(--accent))",
+              border: "1px dashed color-mix(in srgb, var(--accent) 40%, transparent)",
+            }}
+          >
+            <span className="text-[13px]">👑</span>
+            手气王：
+            <span className="font-bold">{getClaimName(kingId)}</span>
+            <span className="ml-1">¥{kingAmount.toFixed(2)}</span>
+          </div>
         )}
-        <div className="mt-1 text-[10px]" style={{ color: "var(--text-soft)" }}>
-          {canClaim && "✨ 点击领取"}
-          {isClaimed && "已领取 ✓"}
-          {isReturned && "已退回"}
-          {isMine && !isClaimed && !isReturned && "等待中..."}
+
+        {/* =============== 群聊评论区：头像 + 昵称 + 金额 + 评论（可折叠） =============== */}
+        {isGroupRp && claims.length > 0 && !rpCollapsed && (
+          <div
+            className="mt-2.5 rounded-xl border pt-2 overflow-hidden"
+            style={{
+              background: "color-mix(in srgb, var(--text) 2.5%, var(--card))",
+              borderColor: "color-mix(in srgb, var(--card-border) 75%, transparent)",
+            }}
+          >
+            <div className="px-2.5 pb-1 flex items-center justify-between">
+              <div className="text-[11px] font-semibold" style={{ color: "var(--text-soft)" }}>
+                💬 抢包记录 & 评论
+              </div>
+              <div className="text-[10px]" style={{ color: "var(--text-soft)" }}>
+                共 {claims.length} 人
+              </div>
+            </div>
+            <div className="divide-y" style={{ borderColor: "color-mix(in srgb, var(--card-border) 55%, transparent)" }}>
+              {claims.map((c, i) => {
+                const isKing = allClaimed && c.contactId === kingId && c.amount > 0;
+                const missed = c.amount === 0;
+                const avatarText = getClaimAvatarText(c.contactId);
+                const avatarImage = getClaimAvatarImage(c.contactId);
+                const name = c.name || getClaimName(c.contactId);
+                return (
+                  <div key={i} className="flex gap-2.5 px-2.5 py-2 items-start">
+                    {/* 头像 */}
+                    <div className="relative shrink-0">
+                      {avatarImage ? (
+                        <img
+                          src={avatarImage}
+                          className="h-8 w-8 rounded-full object-cover border"
+                          style={{ borderColor: "color-mix(in srgb, var(--card-border) 80%, transparent)" }}
+                          draggable={false}
+                        />
+                      ) : (
+                        <div
+                          className="h-8 w-8 rounded-full flex items-center justify-center text-[13px] font-semibold border"
+                          style={{
+                            borderColor: "color-mix(in srgb, var(--card-border) 80%, transparent)",
+                            background: c.contactId === "me"
+                              ? "color-mix(in srgb, var(--accent) 20%, transparent)"
+                              : "color-mix(in srgb, var(--her-card) 80%, var(--card))",
+                            color: c.contactId === "me" ? "var(--accent)" : "var(--text)",
+                          }}
+                        >
+                          {avatarText}
+                        </div>
+                      )}
+                      {/* 手气王冠在头像右上角 */}
+                      {isKing && (
+                        <div
+                          className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full flex items-center justify-center shadow"
+                          style={{
+                            background: "linear-gradient(135deg, #FFDF7C, #F5A623)",
+                            fontSize: "9px",
+                            lineHeight: 1,
+                            border: "1px solid #fff",
+                          }}
+                          title="手气王"
+                        >
+                          👑
+                        </div>
+                      )}
+                    </div>
+                    {/* 主体 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 text-[12px]">
+                        <span
+                          className="font-semibold truncate min-w-0"
+                          style={{ color: c.contactId === "me" ? "var(--accent)" : "var(--text)" }}
+                        >
+                          {name}
+                        </span>
+                        {isKing && (
+                          <span
+                            className="shrink-0 text-[10px] rounded-full px-1.5 py-0.5 font-medium"
+                            style={{
+                              background: "color-mix(in srgb, #F5C16B 35%, transparent)",
+                              color: "#9A6B00",
+                              border: "1px dashed color-mix(in srgb, #F5C16B 70%, transparent)",
+                            }}
+                          >
+                            手气王
+                          </span>
+                        )}
+                        <span
+                          className={`ml-auto shrink-0 text-[12px] font-bold ${missed ? "" : ""}`}
+                          style={{ color: missed ? "var(--text-soft)" : "var(--accent)" }}
+                        >
+                          {missed ? "💨 手慢了" : `¥${c.amount.toFixed(2)}`}
+                        </span>
+                      </div>
+                      {/* 评论内容（有就显示，类似帖子评论） */}
+                      {c.comment ? (
+                        <div
+                          className="mt-1 inline-block max-w-full rounded-lg px-2 py-1 text-[12px] leading-snug"
+                          style={{
+                            background: "color-mix(in srgb, var(--text) 5%, transparent)",
+                            color: "var(--text)",
+                          }}
+                        >
+                          {c.comment}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px]" style={{ color: "color-mix(in srgb, var(--text-soft) 70%, transparent)" }}>
+                          {missed ? "（没抢到，默默围观）" : "（暂未评论）"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 底部状态条 */}
+            <div
+              className="px-2.5 py-1.5 text-[10px] flex items-center justify-between"
+              style={{
+                background: "color-mix(in srgb, var(--text) 2%, transparent)",
+                color: "var(--text-soft)",
+                borderTop: "1px dashed color-mix(in srgb, var(--card-border) 55%, transparent)",
+              }}
+            >
+              <span>
+                {canClaimGroup && "✨ 点上面红包卡即可开红包"}
+                {!canClaimGroup && !allClaimed && message.sender !== "me" && meClaimed && "✓ 我已抢到"}
+                {!canClaimGroup && !allClaimed && isMine && `还剩 ${count - claimedCount} 个待领取`}
+                {allClaimed && "🎊 已领完，感谢老板！"}
+              </span>
+              <span>{realClaims.length}人抢到</span>
+            </div>
+          </div>
+        )}
+
+        <div className={timeRowClass.replace("px-1", "px-0")} style={{ ...timeColor, color: "color-mix(in srgb, var(--text) 40%, transparent)", marginTop: "10px" }}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
         </div>
-        <span className="mt-0.5 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 40%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
       </div>
     );
   }
 
+  const quotedMsg = message.quoteId && conv
+    ? conv.messages.find((m) => m.id === message.quoteId)
+    : undefined;
+
+  const quoteSenderLabel = message.quoteSender === "me" ? "我" : "对方";
+
   return (
     <>
-      {message.quoteText && (
+      {(message.quoteText || quotedMsg) && (
         <div
           className="animate-bubbleIn mb-1 rounded-lg border-l-2 px-2.5 py-1.5 text-[13px]"
           style={{
@@ -1269,9 +1849,21 @@ function MessageBubble({
           }}
         >
           <div className="text-[11px] font-semibold mb-0.5" style={{ color: "var(--accent)" }}>
-            {message.quoteSender === "me" ? "我" : "对方"}
+            {quoteSenderLabel}
           </div>
-          <div className="line-clamp-3 leading-snug opacity-90">{message.quoteText}</div>
+          {quotedMsg && quotedMsg.type === "sticker" && quotedMsg.sticker ? (
+            <div className="flex items-center gap-2 line-clamp-2 leading-snug opacity-90">
+              <img src={quotedMsg.sticker} className="h-10 w-10 rounded object-contain border" draggable={false} style={{ borderColor: "var(--card-border)" }} />
+              <span style={{ color: "var(--text-soft)" }}>[表情包]</span>
+            </div>
+          ) : quotedMsg && quotedMsg.type === "image" && quotedMsg.image ? (
+            <div className="flex items-center gap-2 line-clamp-2 leading-snug opacity-90">
+              <img src={quotedMsg.image} className="h-14 w-14 rounded object-cover border" draggable={false} style={{ borderColor: "var(--card-border)" }} />
+              <span style={{ color: "var(--text-soft)" }}>[图片]</span>
+            </div>
+          ) : (
+            <div className="line-clamp-3 leading-snug opacity-90">{message.quoteText || ""}</div>
+          )}
         </div>
       )}
       <div className={`relative animate-bubbleIn ${isLeft ? "bubble-tail-left" : "bubble-tail-right"}`} style={{ maxWidth: "100%", minHeight: "36px" }}>
@@ -1296,16 +1888,16 @@ function MessageBubble({
           🌸 心情 · {message.moodNote}
         </div>
       )}
-      <span className="mt-0.5 px-1 text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-        {time}
-        {showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}
-      </span>
+      <div className={timeRowClass} style={timeColor}>
+        <span>{time}</span>
+        {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+        {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+      </div>
     </>
   );
 }
 
-function SurveyBubble({ message, time, bgColor, showRead, showReadIgnored }: { message: Message; time: string; bgColor: string; showRead?: boolean; showReadIgnored?: boolean }) {
+function SurveyBubble({ message, time, bgColor, showRead, showReadIgnored, isMine }: { message: Message; time: string; bgColor: string; showRead?: boolean; showReadIgnored?: boolean; isMine?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const s = message.survey!;
   const isCompleted = !!s.answers;
@@ -1314,6 +1906,9 @@ function SurveyBubble({ message, time, bgColor, showRead, showReadIgnored }: { m
   const firstAnswer = isCompleted && s.answers?.[0]
     ? s.answers[0].answer
     : null;
+
+  const timeRowClass = `mt-1 w-full flex gap-1 text-[10px] px-0 ${isMine ? "justify-start" : "justify-end"}`;
+  const timeColor = { color: "color-mix(in srgb, var(--text) 50%, transparent)" };
 
   return (
     <div
@@ -1369,8 +1964,11 @@ function SurveyBubble({ message, time, bgColor, showRead, showReadIgnored }: { m
         </div>
       )}
 
-      <span className="mt-1 px-0 text-[10px] block" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>{time}{showRead && <>  <span style={{ color: "var(--text-soft)" }}>已读</span></>}
-          {showReadIgnored && <>  <span style={{ color: "#ef4444" }}>已读不回</span></>}</span>
+      <div className={timeRowClass} style={timeColor}>
+        <span>{time}</span>
+        {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+        {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
+      </div>
     </div>
   );
 }
@@ -1383,6 +1981,8 @@ function RPSBubble({
   getAvatarImage,
   bubbleStyle,
   showReadIgnoredBadge,
+  showRead,
+  showReadIgnored,
 }: {
   message: Message;
   side: "left" | "right";
@@ -1391,8 +1991,11 @@ function RPSBubble({
   getAvatarImage: (id: string) => string;
   bubbleStyle: React.CSSProperties;
   showReadIgnoredBadge?: boolean;
+  showRead?: boolean;
+  showReadIgnored?: boolean;
 }) {
   const isLeft = side === "left";
+  const isMine = message.sender === "me";
   const rps = message.rps!;
   const time = new Date(message.timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -1420,6 +2023,9 @@ function RPSBubble({
     return "color-mix(in srgb, var(--text) 70%, transparent)";
   };
 
+  const timeRowClass = `mt-0.5 w-full flex flex-wrap gap-1 text-[10px] ${isMine ? "pl-1 justify-start" : "pr-1 justify-end"}`;
+  const timeColor = { color: "color-mix(in srgb, var(--text) 50%, transparent)" };
+
   return (
     <div className={`flex items-center gap-2 ${isLeft ? "justify-start" : "justify-end"}`}>
       {isLeft && (
@@ -1432,7 +2038,7 @@ function RPSBubble({
           />
         </div>
       )}
-      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
+      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%] w-full`}>
         <div
           className="animate-bubbleIn px-4 py-3"
           style={{
@@ -1464,20 +2070,10 @@ function RPSBubble({
             {resultText()}
           </div>
         </div>
-        <div className={`mt-0.5 flex flex-wrap gap-1 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
-          <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-            {time}
-          </span>
-          {message.sender === "me" && message.readStatus === "read" && (
-            <span className="text-[10px]" style={{ color: "var(--text-soft)" }}>
-              已读
-            </span>
-          )}
-          {message.sender === "me" && message.readStatus === "ignored" && (
-            <span className="text-[10px]" style={{ color: "#ef4444" }}>
-              已读不回
-            </span>
-          )}
+        <div className={timeRowClass} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
         </div>
       </div>
       {!isLeft && (
@@ -1502,6 +2098,8 @@ function PollBubble({
   getAvatarImage,
   bubbleStyle,
   showReadIgnoredBadge,
+  showRead,
+  showReadIgnored,
 }: {
   message: Message;
   side: "left" | "right";
@@ -1510,8 +2108,11 @@ function PollBubble({
   getAvatarImage: (id: string) => string;
   bubbleStyle: React.CSSProperties;
   showReadIgnoredBadge?: boolean;
+  showRead?: boolean;
+  showReadIgnored?: boolean;
 }) {
   const isLeft = side === "left";
+  const isMine = message.sender === "me";
   const poll = message.poll!;
   const time = new Date(message.timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -1526,6 +2127,9 @@ function PollBubble({
       .map(([id]) => getContactName(id));
   };
 
+  const timeRowClass = `mt-0.5 w-full flex flex-wrap gap-1 text-[10px] ${isMine ? "pl-1 justify-start" : "pr-1 justify-end"}`;
+  const timeColor = { color: "color-mix(in srgb, var(--text) 50%, transparent)" };
+
   return (
     <div className={`flex items-center gap-2 ${isLeft ? "justify-start" : "justify-end"}`}>
       {isLeft && (
@@ -1538,7 +2142,7 @@ function PollBubble({
           />
         </div>
       )}
-      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%]`}>
+      <div className={`flex flex-col ${isLeft ? "items-start" : "items-end"} max-w-[78%] w-full`}>
         <div
           className="animate-bubbleIn px-4 py-3"
           style={{
@@ -1585,20 +2189,10 @@ function PollBubble({
             );
           })}
         </div>
-        <div className={`mt-0.5 flex flex-wrap gap-1 ${isLeft ? "pl-1 items-start" : "pr-1 items-end"}`}>
-          <span className="text-[10px]" style={{ color: "color-mix(in srgb, var(--text) 50%, transparent)" }}>
-            {time}
-          </span>
-          {message.sender === "me" && message.readStatus === "read" && (
-            <span className="text-[10px]" style={{ color: "var(--text-soft)" }}>
-              已读
-            </span>
-          )}
-          {message.sender === "me" && message.readStatus === "ignored" && (
-            <span className="text-[10px]" style={{ color: "#ef4444" }}>
-              已读不回
-            </span>
-          )}
+        <div className={timeRowClass} style={timeColor}>
+          <span>{time}</span>
+          {showRead && <span style={{ color: "var(--text-soft)" }}>已读</span>}
+          {showReadIgnored && <span style={{ color: "#ef4444" }}>已读不回</span>}
         </div>
       </div>
       {!isLeft && (

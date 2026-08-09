@@ -45,6 +45,7 @@ export interface Message {
   quoteSender?: string;
   recalled?: boolean;
   isAutoInitiated?: boolean;
+  envelopeOpened?: boolean;
   survey?: {
     surveyId: string;
     title: string;
@@ -60,6 +61,8 @@ export interface Message {
     action: "recommend" | "buy" | "bought";
     leaveMessage?: string; // 给对方买完后的留言
   };
+  readIgnored?: boolean;
+  readStatus?: "none" | "read" | "ignored";
   redpacket?: {
     amount: number;
     message?: string;
@@ -67,9 +70,19 @@ export interface Message {
     claimedAt?: number;
     returned?: boolean;
     returnedAt?: number;
+    isGroup?: boolean;
+    count?: number;
+    remaining?: number;
+    totalAmount?: number;
+    claims?: Array<{
+      contactId: string;
+      amount: number;
+      isBest?: boolean;
+      at: number;
+      comment?: string;
+      commentAt?: number;
+    }>;
   };
-  readIgnored?: boolean;
-  readStatus?: "none" | "read" | "ignored";
 }
 
 export interface MealRecord {
@@ -192,6 +205,21 @@ export interface Conversation {
     part: "ear" | "top" | "accessory";
     hiddenAt: number;
   } | null;
+}
+
+// =========== 新消息弹窗（微信式浮窗） ===========
+export interface MsgNotification {
+  id: string;
+  conversationId: string;
+  senderId: string; // 消息发送者ID (可能是"me" / 联系人ID / 群成员ID)
+  senderName: string;
+  senderAvatarText: string;
+  senderAvatarImage?: string;
+  conversationName: string;
+  isGroup: boolean;
+  preview: string; // 消息预览文案
+  messageType: Message["type"];
+  timestamp: number;
 }
 
 // =========== 问卷 ===========

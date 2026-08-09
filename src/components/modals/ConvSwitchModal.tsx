@@ -12,6 +12,8 @@ export default function ConvSwitchModal({ isOpen, onClose }: ConvSwitchModalProp
   const activeConversationId = useAppStore((s) => s.activeConversationId);
   const groupConversationId = useAppStore((s) => s.groupConversationId);
   const groupChatEnabled = useAppStore((s) => s.groupChatEnabled);
+  // 群聊入口显隐开关（从设置面板控制）
+  const groupChatSwitchEnabled = useAppStore((s) => s.chat.groupChatSwitchEnabled);
   const contacts = useAppStore((s) => s.contacts);
   const setActiveConversation = useAppStore((s) => s.setActiveConversation);
   const addContact = useAppStore((s) => s.addContact);
@@ -189,68 +191,72 @@ export default function ConvSwitchModal({ isOpen, onClose }: ConvSwitchModalProp
         ) : (
           <>
             <div className="flex-1 overflow-y-auto fancy-scroll space-y-2">
-              <div
-                className="flex items-center justify-between rounded-xl border p-3"
-                style={{ borderColor: "var(--card-border)" }}
-              >
-                <div className="flex items-center gap-3">
+              {groupChatSwitchEnabled && (
+                <>
                   <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: "var(--her-card)", color: "var(--text)" }}
+                    className="flex items-center justify-between rounded-xl border p-3"
+                    style={{ borderColor: "var(--card-border)" }}
                   >
-                    <Users className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="font-medium" style={{ color: "var(--text)" }}>
-                      群聊功能
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: "var(--her-card)", color: "var(--text)" }}
+                      >
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium" style={{ color: "var(--text)" }}>
+                          群聊功能
+                        </div>
+                        <div className="text-xs" style={{ color: "var(--text-soft)" }}>
+                          {groupChatEnabled ? "已开启" : "已关闭"}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs" style={{ color: "var(--text-soft)" }}>
-                      {groupChatEnabled ? "已开启" : "已关闭"}
-                    </div>
+                    <button
+                      onClick={() => setGroupChatEnabled(!groupChatEnabled)}
+                      className="relative h-6 w-11 rounded-full transition"
+                      style={{
+                        background: groupChatEnabled ? "var(--accent)" : "var(--card-border)",
+                      }}
+                    >
+                      <span
+                        className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
+                        style={{ left: groupChatEnabled ? "22px" : "2px" }}
+                      />
+                    </button>
                   </div>
-                </div>
-                <button
-                  onClick={() => setGroupChatEnabled(!groupChatEnabled)}
-                  className="relative h-6 w-11 rounded-full transition"
-                  style={{
-                    background: groupChatEnabled ? "var(--accent)" : "var(--card-border)",
-                  }}
-                >
-                  <span
-                    className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all"
-                    style={{ left: groupChatEnabled ? "22px" : "2px" }}
-                  />
-                </button>
-              </div>
 
-              {groupChatEnabled && (
-                <button
-                  onClick={() => handleSelectConv(groupConversationId)}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-3 transition hover:bg-black/5 ${
-                    activeConversationId === groupConversationId ? "bg-black/5" : ""
-                  }`}
-                  style={{
-                    borderColor: activeConversationId === groupConversationId ? "var(--accent)" : "var(--card-border)",
-                  }}
-                >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
-                    style={{ background: "var(--accent)", color: "var(--card)" }}
-                  >
-                    <Users className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="font-medium" style={{ color: "var(--text)" }}>
-                      {groupConv?.name || "群聊"}
-                    </div>
-                    <div className="text-xs" style={{ color: "var(--text-soft)" }}>
-                      {groupConv?.memberIds.length || 0} 人
-                    </div>
-                  </div>
-                  {activeConversationId === groupConversationId && (
-                    <div className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--accent)" }} />
+                  {groupChatEnabled && (
+                    <button
+                      onClick={() => handleSelectConv(groupConversationId)}
+                      className={`flex w-full items-center gap-3 rounded-xl border p-3 transition hover:bg-black/5 ${
+                        activeConversationId === groupConversationId ? "bg-black/5" : ""
+                      }`}
+                      style={{
+                        borderColor: activeConversationId === groupConversationId ? "var(--accent)" : "var(--card-border)",
+                      }}
+                    >
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                        style={{ background: "var(--accent)", color: "var(--card)" }}
+                      >
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium" style={{ color: "var(--text)" }}>
+                          {groupConv?.name || "群聊"}
+                        </div>
+                        <div className="text-xs" style={{ color: "var(--text-soft)" }}>
+                          {groupConv?.memberIds.length || 0} 人
+                        </div>
+                      </div>
+                      {activeConversationId === groupConversationId && (
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--accent)" }} />
+                      )}
+                    </button>
                   )}
-                </button>
+                </>
               )}
 
               {privateConvs.map((conv) => {

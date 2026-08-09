@@ -26,10 +26,26 @@ export interface ChatSettings {
   waterReminder: boolean;
   pushNotification: boolean;
   readIgnoreEnabled: boolean;
+  readBadgeEnabled: boolean;
+  recallEnabled: boolean;
   privateReplyMin: number;
   privateReplyMax: number;
   groupReplyMin: number;
   groupReplyMax: number;
+  // 新消息弹窗提醒（类似微信浮窗）
+  msgToastEnabled: boolean;
+  // 当前会话是否也弹（默认false：当前会话不弹）
+  msgToastForActiveConv: boolean;
+  // 新消息音效总开关
+  msgSoundEnabled: boolean;
+  // 音效预设：ding / dong / chord / pop / silent / custom
+  msgSoundPreset: "ding" | "dong" | "chord" | "pop" | "silent" | "custom";
+  // 自定义音效（base64 dataURL，用户上传）
+  msgSoundCustomDataUrl: string;
+  // 音效音量 0~1
+  msgSoundVolume: number;
+  // 是否在联系人切换界面显示「群聊」入口
+  groupChatSwitchEnabled: boolean;
 }
 
 export const DEFAULT_BEAUTY: BeautySettings = {
@@ -58,10 +74,19 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   waterReminder: true,
   pushNotification: true,
   readIgnoreEnabled: true,
-  privateReplyMin: 2,
-  privateReplyMax: 5,
-  groupReplyMin: 2,
-  groupReplyMax: 5,
+  readBadgeEnabled: true,
+  recallEnabled: true,
+  privateReplyMin: 1,
+  privateReplyMax: 3,
+  groupReplyMin: 1,
+  groupReplyMax: 3,
+  msgToastEnabled: true,
+  msgToastForActiveConv: false,
+  msgSoundEnabled: true,
+  msgSoundPreset: "ding",
+  msgSoundCustomDataUrl: "",
+  msgSoundVolume: 0.7,
+  groupChatSwitchEnabled: true,
 };
 
 export const BUBBLE_STYLES = [

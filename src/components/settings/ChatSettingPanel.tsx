@@ -123,9 +123,25 @@ export default function ChatSettingPanel() {
 
       <Section title="已读不回">
         <Toggle
-          label="开启后，你发出的消息有3%概率对方不回复，消息底标注「已读不回」"
+          label="开启后，你发出的消息有概率对方不回复（头像出现红色猫耳标记）"
           checked={chat.readIgnoreEnabled}
           onChange={(v) => setChat({ readIgnoreEnabled: v })}
+        />
+      </Section>
+
+      <Section title="已读 / 已读不回 标注">
+        <Toggle
+          label="在你发出的消息旁显示「已读」或红色猫耳（关闭后不再显示任何已读类标识）"
+          checked={chat.readBadgeEnabled}
+          onChange={(v) => setChat({ readBadgeEnabled: v })}
+        />
+      </Section>
+
+      <Section title="对方撤回消息">
+        <Toggle
+          label="开启后，对方有小概率撤回自己刚发的消息"
+          checked={chat.recallEnabled}
+          onChange={(v) => setChat({ recallEnabled: v })}
         />
       </Section>
 
@@ -218,6 +234,169 @@ export default function ChatSettingPanel() {
           label="网页在后台时，对方回复消息、发信或回复备忘录，用浏览器推送通知提醒你上线看看"
           checked={chat.pushNotification}
           onChange={(v) => setChat({ pushNotification: v })}
+        />
+      </Section>
+
+      <Section title="新消息浮窗 & 提示音">
+        <div className="space-y-2.5 rounded-xl border p-3" style={{
+          background: "var(--card)",
+          borderColor: "var(--card-border)",
+        }}>
+          <Toggle
+            label="开启后收到新消息会弹出微信式悬浮小卡片提醒"
+            checked={chat.msgToastEnabled}
+            onChange={(v) => setChat({ msgToastEnabled: v })}
+          />
+          {chat.msgToastEnabled && (
+            <Toggle
+              label="当前正在看的会话也弹出浮窗提醒（默认仅其他会话）"
+              checked={chat.msgToastForActiveConv}
+              onChange={(v) => setChat({ msgToastForActiveConv: v })}
+            />
+          )}
+        </div>
+
+        <div className="mt-3 space-y-3 rounded-xl border p-3" style={{
+          background: "var(--card)",
+          borderColor: "var(--card-border)",
+        }}>
+          <Toggle
+            label="新消息提示音（开关）"
+            checked={chat.msgSoundEnabled}
+            onChange={(v) => setChat({ msgSoundEnabled: v })}
+          />
+          {chat.msgSoundEnabled && (
+            <>
+              <div>
+                <div className="mb-1.5 text-[11px]" style={{ color: "var(--text-soft)" }}>
+                  选择提示音
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: "ding", label: "🔔 经典叮咚" },
+                    { id: "dong", label: "🔕 低沉叮咚" },
+                    { id: "chord", label: "🎵 柔和和弦" },
+                    { id: "pop", label: "🎈 清脆 Pop" },
+                    { id: "silent", label: "🚫 静音" },
+                    { id: "custom", label: "📂 自定义" },
+                  ].map((o) => {
+                    const active = chat.msgSoundPreset === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setChat({ msgSoundPreset: o.id as any })}
+                        className="rounded-lg border px-2 py-1.5 text-[11px] transition hover:bg-black/5"
+                        style={{
+                          background: active
+                            ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                            : "transparent",
+                          borderColor: active
+                            ? "color-mix(in srgb, var(--accent) 50%, var(--card-border))"
+                            : "var(--card-border)",
+                          color: active ? "var(--accent)" : "var(--text)",
+                          fontWeight: active ? 600 : 400,
+                        }}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {chat.msgSoundPreset === "custom" && (
+                <div className="rounded-lg border p-2.5 space-y-2" style={{
+                  borderColor: "color-mix(in srgb, var(--accent) 35%, var(--card-border))",
+                  background: "color-mix(in srgb, var(--accent) 6%, transparent)",
+                }}>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      if (f.size > 800 * 1024) {
+                        alert("音频文件过大，请使用 ≤ 800KB 的 mp3/wav/ogg 等");
+                        e.target.value = "";
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const url = String(reader.result || "");
+                        setChat({ msgSoundCustomDataUrl: url });
+                      };
+                      reader.readAsDataURL(f);
+                      e.target.value = "";
+                    }}
+                    className="w-full text-[11px]"
+                    style={{ color: "var(--text)" }}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[10px] truncate min-w-0 flex-1" style={{ color: "var(--text-soft)" }}>
+                      {chat.msgSoundCustomDataUrl
+                        ? `✓ 已上传（${Math.round(chat.msgSoundCustomDataUrl.length / 1024 * 0.75)} KB）`
+                        : "尚未上传自定义音频（支持 mp3 / wav / ogg，≤800KB）"}
+                    </div>
+                    {chat.msgSoundCustomDataUrl && (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md px-2 py-1 text-[10px] border"
+                        style={{
+                          color: "var(--text-soft)",
+                          borderColor: "var(--card-border)",
+                          background: "var(--card)",
+                        }}
+                        onClick={() => setChat({ msgSoundCustomDataUrl: "" })}
+                      >
+                        清除
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <div className="text-[11px]" style={{ color: "var(--text-soft)" }}>
+                    音量
+                  </div>
+                  <div className="text-[10px]" style={{ color: "var(--text-soft)" }}>
+                    {Math.round((chat.msgSoundVolume || 0) * 100)}%
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((chat.msgSoundVolume || 0.7) * 100)}
+                  onChange={(e) => setChat({ msgSoundVolume: Number(e.target.value) / 100 })}
+                  className="w-full accent-[var(--accent)]"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => useAppStore.getState().playMsgSound()}
+                className="w-full rounded-lg border py-2 text-[12px] font-medium transition hover:scale-[1.01] active:scale-[0.99]"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--accent) 35%, var(--card-border))",
+                  color: "var(--accent)",
+                  background: "color-mix(in srgb, var(--accent) 10%, transparent)",
+                }}
+              >
+                ▶ 试听当前提示音
+              </button>
+            </>
+          )}
+        </div>
+      </Section>
+
+      <Section title="群聊入口开关">
+        <Toggle
+          label="在「切换联系人」界面显示群聊入口（关闭后群聊依然存在，只是不在联系人切换界面显示）"
+          checked={chat.groupChatSwitchEnabled}
+          onChange={(v) => setChat({ groupChatSwitchEnabled: v })}
         />
       </Section>
 
